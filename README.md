@@ -4,11 +4,13 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 
 ## Usage
 
-### First, prepare imagenet data
+### First
+
+Preparing imagenet data
 
 Please refer to Google's tutorial for [training inception](https://github.com/tensorflow/models/tree/master/inception#getting-started)
 
-### Second, modify training script
+### Second
 
 Modify './script/train_mobilenet_on_imagenet.sh' according to your environment.
 
