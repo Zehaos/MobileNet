@@ -12,8 +12,6 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 
 [#issues1](https://github.com/Zehaos/MobileNet/issues/1)
 
-[Is it OK to mix tf layer with slim layer?](https://stackoverflow.com/questions/43538420/can-not-mix-slim-layer-with-tensorflow)
-
 ## Usage
 
 ### First
