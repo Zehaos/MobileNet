@@ -67,7 +67,7 @@ def mobilenet(inputs,
         net = _depthwise_separable_conv(net, 32, 64, width_multiplier=width_multiplier, sc='conv_ds_2')
         net = _depthwise_separable_conv(net, 64, 128, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_3')
         net = _depthwise_separable_conv(net, 128, 128, width_multiplier=width_multiplier, sc='conv_ds_4')
-        net = _depthwise_separable_conv(net, 128, 128, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_5')
+        net = _depthwise_separable_conv(net, 128, 256, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_5')
         net = _depthwise_separable_conv(net, 256, 256, width_multiplier=width_multiplier, sc='conv_ds_6')
         net = _depthwise_separable_conv(net, 256, 512, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_7')
 
