@@ -20,5 +20,6 @@ bash ./script/train_mobilenet_on_imagenet.sh
 
 ## TODO
 - [x] Train on Imagenet
+- [ ] Add Hyperparameters
 - [ ] Report training result
 - [ ] Intergrate into object detection task
