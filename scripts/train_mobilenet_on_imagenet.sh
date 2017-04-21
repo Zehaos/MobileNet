@@ -2,7 +2,7 @@
 #
 # This script performs the following operations:
 # 1. Trains a MobileNet model on the Imagenet training set.
-# 2. Evaluates the model on the Imagenet testing set.
+# 2. Evaluates the model on the Imagenet validation set.
 #
 # Usage:
 # ./scripts/train_mobilenet_on_imagenet.sh
@@ -23,10 +23,10 @@ python train_image_classifier.py \
   --preprocessing_name=mobilenet \
   --width_multiplier=1.0 \
   --max_number_of_steps=1000000 \
-  --batch_size=128 \
+  --batch_size=64 \
   --save_interval_secs=240 \
   --save_summaries_secs=240 \
-  --log_every_n_steps=1000 \
+  --log_every_n_steps=100 \
   --optimizer=rmsprop \
   --rmsprop_decay=0.9 \
   --opt_epsilon=1.0\
@@ -36,7 +36,7 @@ python train_image_classifier.py \
   --momentum=0.9 \
   --num_epochs_per_decay=30.0 \
   --weight_decay=0.0 \
-  --num_clones=3
+  --num_clones=1
 
 # Run evaluation.
 python eval_image_classifier.py \
