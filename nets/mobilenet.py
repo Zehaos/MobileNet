@@ -36,14 +36,22 @@ def mobilenet(inputs,
     """
     num_dwc_filters = round(num_dwc_filters * width_multiplier)
     num_pwc_filters = round(num_pwc_filters * width_multiplier)
-
     _stride = 2 if downsample else 1
+    """
+    depthwise_conv = tf.nn.depthwise_conv2d(inputs,
+                                            [3, 3, num_dwc_filters, 1],
+                                            [1, _stride, _stride, 1],
+                                            padding='SAME',
+                                            name=sc+'/depthwise_conv')
+                                            """
+    #TODO(shizehao): use depthwise_conv2d instead
     depthwise_conv = slim.separable_convolution2d(inputs,
                                                   num_outputs=num_dwc_filters,
                                                   stride=_stride,
                                                   depth_multiplier=1,
                                                   kernel_size=[3, 3],
                                                   scope=sc+'/depthwise_conv')
+
     bn = slim.batch_norm(depthwise_conv, scope=sc+'/dw_batch_norm')
     pointwise_conv = slim.convolution2d(bn,
                                         num_pwc_filters,
@@ -60,7 +68,7 @@ def mobilenet(inputs,
 
       net = slim.convolution2d(inputs, round(32*width_multiplier), [3, 3], stride=2, padding='SAME', scope='conv_1')
       net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='conv_1/batch_norm')
-
+      #net = tf.nn.conv2d(inputs, [3, 3, 3, 32], [1, 2, 2, 1], padding='SAME')
       with slim.arg_scope([slim.batch_norm],
                           is_training=is_training,
                           activation_fn=tf.nn.relu):
