@@ -8,6 +8,10 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 <img src="https://github.com/Zehaos/MobileNet/blob/master/figures/dwl_pwl.png"><br><br>
 </div>
 
+## Known bug
+
+[#issues1](https://github.com/Zehaos/MobileNet/issues/1)
+
 ## Usage
 
 ### First
