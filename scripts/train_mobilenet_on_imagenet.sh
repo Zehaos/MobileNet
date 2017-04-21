@@ -31,7 +31,6 @@ python train_image_classifier.py \
   --rmsprop_decay=0.9 \
   --opt_epsilon=1.0\
   --learning_rate=0.1 \
-  --end_learning_rate=0.000001
   --learning_rate_decay_factor=0.1 \
   --momentum=0.9 \
   --num_epochs_per_decay=30.0 \
