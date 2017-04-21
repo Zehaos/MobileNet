@@ -79,6 +79,9 @@ tf.app.flags.DEFINE_float(
 tf.app.flags.DEFINE_integer(
     'eval_image_size', None, 'Eval image size')
 
+tf.app.flags.DEFINE_float('width_multiplier', 1.0,
+                            'Width Multiplier, for MobileNet only.')
+
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -102,7 +105,8 @@ def main(_):
     network_fn = nets_factory.get_network_fn(
         FLAGS.model_name,
         num_classes=(dataset.num_classes - FLAGS.labels_offset),
-        is_training=False)
+        is_training=False,
+        width_multiplier=FLAGS.width_multiplier)
 
     ##############################################################
     # Create a dataset provider that loads data from the dataset #
