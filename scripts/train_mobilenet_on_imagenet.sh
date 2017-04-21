@@ -21,22 +21,23 @@ python train_image_classifier.py \
   --dataset_dir=${DATASET_DIR} \
   --model_name=mobilenet \
   --preprocessing_name=mobilenet \
+  --width_multiplier=1.0 \
   --max_number_of_steps=100000 \
   --batch_size=1 \
   --save_interval_secs=120 \
   --save_summaries_secs=120 \
   --log_every_n_steps=100 \
-  --optimizer=sgd \
+  --optimizer=rmsprop \
   --learning_rate=0.1 \
   --learning_rate_decay_factor=0.1 \
   --num_epochs_per_decay=200 \
   --weight_decay=0.004
 
 # Run evaluation.
-python eval_image_classifier.py \
-  --checkpoint_path=${TRAIN_DIR} \
-  --eval_dir=${TRAIN_DIR} \
-  --dataset_name=imagenet \
-  --dataset_split_name=test \
-  --dataset_dir=${DATASET_DIR} \
-  --model_name=mobilenet
+#python eval_image_classifier.py \
+#  --checkpoint_path=${TRAIN_DIR} \
+#  --eval_dir=${TRAIN_DIR} \
+#  --dataset_name=imagenet \
+#  --dataset_split_name=test \
+#  --dataset_dir=${DATASET_DIR} \
+#  --model_name=mobilenet

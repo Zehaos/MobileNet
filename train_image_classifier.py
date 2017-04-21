@@ -196,6 +196,9 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_integer('max_number_of_steps', None,
                             'The maximum number of training steps.')
 
+tf.app.flags.DEFINE_float('width_multiplier', 1.0,
+                            'Width Multiplier, for MobileNet only.')
+
 #####################
 # Fine-Tuning Flags #
 #####################
@@ -421,7 +424,8 @@ def main(_):
         FLAGS.model_name,
         num_classes=(dataset.num_classes - FLAGS.labels_offset),
         weight_decay=FLAGS.weight_decay,
-        is_training=True)
+        is_training=True,
+        width_multiplier=FLAGS.width_multiplier)
 
     #####################################
     # Select the preprocessing function #
