@@ -12,9 +12,9 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 
 ### First
 
-Preparing imagenet data
+Prepare imagenet data.
 
-Please refer to Google's tutorial for [training inception](https://github.com/tensorflow/models/tree/master/inception#getting-started)
+Please refer to Google's tutorial for [training inception](https://github.com/tensorflow/models/tree/master/inception#getting-started).
 
 ### Second
 
