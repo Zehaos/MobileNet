@@ -30,3 +30,8 @@ bash ./script/train_mobilenet_on_imagenet.sh
 - [x] Add Width Multiplier Hyperparameters
 - [ ] Report training result
 - [ ] Intergrate into object detection task
+
+## Reference
+[MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications](https://arxiv.org/abs/1704.04861)
+
+[SSD-Tensorflow](https://github.com/balancap/SSD-Tensorflow)
