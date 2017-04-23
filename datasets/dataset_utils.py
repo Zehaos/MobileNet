@@ -41,16 +41,20 @@ def int64_feature(values):
   return tf.train.Feature(int64_list=tf.train.Int64List(value=values))
 
 
-def bytes_feature(values):
-  """Returns a TF-Feature of bytes.
+def float_feature(value):
+    """Wrapper for inserting float features into Example proto.
+    """
+    if not isinstance(value, list):
+        value = [value]
+    return tf.train.Feature(float_list=tf.train.FloatList(value=value))
 
-  Args:
-    values: A string.
 
-  Returns:
-    a TF-Feature.
-  """
-  return tf.train.Feature(bytes_list=tf.train.BytesList(value=[values]))
+def bytes_feature(value):
+    """Wrapper for inserting bytes features into Example proto.
+    """
+    if not isinstance(value, list):
+        value = [value]
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
 
 
 def image_to_tfexample(image_data, image_format, height, width, class_id):
