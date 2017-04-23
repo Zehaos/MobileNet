@@ -24,6 +24,15 @@ Modify './script/train_mobilenet_on_imagenet.sh' according to your environment.
 bash ./script/train_mobilenet_on_imagenet.sh
 ```
 
+## Trouble Shooting
+
+1. About the MobileNet model size
+
+According to the paper, MobileNet has 3.3 Million Parameters, which does not vary based on the input resolution.
+It means that the final model Parameters should be larger than 3.3 Million, because of the fc layer.
+
+When using RMSprop training strategy, the checkpoint file size should be almost 3 times as large as the model size, 
+because of some auxiliary parameters used in RMSprop. You can use the inspect_checkpoint.py to figure it out.
 
 ## TODO
 - [x] Train on Imagenet
