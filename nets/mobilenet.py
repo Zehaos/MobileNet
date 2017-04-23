@@ -27,25 +27,15 @@ def mobilenet(inputs,
   """
 
   def _depthwise_separable_conv(inputs,
-                                num_dwc_filters,
                                 num_pwc_filters,
+                                width_multiplier,
                                 sc,
-                                width_multiplier=1,
                                 downsample=False):
     """ Helper function to build the depth-wise separable convolution layer.
     """
-    num_dwc_filters = round(num_dwc_filters * width_multiplier)
     num_pwc_filters = round(num_pwc_filters * width_multiplier)
     _stride = 2 if downsample else 1
-    """
-    dwl_filters = slim.variable(sc+'/depthwise_conv_filter', [3, 3, num_dwc_filters, 1])
-    depthwise_conv = tf.nn.depthwise_conv2d(inputs,
-                                            dwl_filters,
-                                            [1, _stride, _stride, 1],
-                                            padding='SAME',
-                                            name=sc+'/depthwise_conv')
 
-    """
     # skip pointwise by setting num_outputs=None
     depthwise_conv = slim.separable_convolution2d(inputs,
                                                   num_outputs=None,
@@ -67,27 +57,26 @@ def mobilenet(inputs,
     with slim.arg_scope([slim.convolution2d, slim.separable_convolution2d],
                         activation_fn=None,
                         outputs_collections=[end_points_collection]):
-
-      net = slim.convolution2d(inputs, round(32*width_multiplier), [3, 3], stride=2, padding='SAME', scope='conv_1')
-      net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='conv_1/batch_norm')
       with slim.arg_scope([slim.batch_norm],
                           is_training=is_training,
                           activation_fn=tf.nn.relu):
-        net = _depthwise_separable_conv(net, 32, 64, width_multiplier=width_multiplier, sc='conv_ds_2')
-        net = _depthwise_separable_conv(net, 64, 128, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_3')
-        net = _depthwise_separable_conv(net, 128, 128, width_multiplier=width_multiplier, sc='conv_ds_4')
-        net = _depthwise_separable_conv(net, 128, 256, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_5')
-        net = _depthwise_separable_conv(net, 256, 256, width_multiplier=width_multiplier, sc='conv_ds_6')
-        net = _depthwise_separable_conv(net, 256, 512, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_7')
+        net = slim.convolution2d(inputs, round(32 * width_multiplier), [3, 3], stride=2, padding='SAME', scope='conv_1')
+        net = slim.batch_norm(net, scope='conv_1/batch_norm')
+        net = _depthwise_separable_conv(net, 64, width_multiplier, sc='conv_ds_2')
+        net = _depthwise_separable_conv(net, 128, width_multiplier, downsample=True, sc='conv_ds_3')
+        net = _depthwise_separable_conv(net, 128, width_multiplier, sc='conv_ds_4')
+        net = _depthwise_separable_conv(net, 256, width_multiplier, downsample=True, sc='conv_ds_5')
+        net = _depthwise_separable_conv(net, 256, width_multiplier, sc='conv_ds_6')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, downsample=True, sc='conv_ds_7')
 
-        net = _depthwise_separable_conv(net, 512, 512, width_multiplier=width_multiplier, sc='conv_ds_8')
-        net = _depthwise_separable_conv(net, 512, 512, width_multiplier=width_multiplier, sc='conv_ds_9')
-        net = _depthwise_separable_conv(net, 512, 512, width_multiplier=width_multiplier, sc='conv_ds_10')
-        net = _depthwise_separable_conv(net, 512, 512, width_multiplier=width_multiplier, sc='conv_ds_11')
-        net = _depthwise_separable_conv(net, 512, 512, width_multiplier=width_multiplier, sc='conv_ds_12')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_8')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_9')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_10')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_11')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_12')
 
-        net = _depthwise_separable_conv(net, 512, 1024, width_multiplier=width_multiplier, downsample=True, sc='conv_ds_13')
-        net = _depthwise_separable_conv(net, 1024, 1024, width_multiplier=width_multiplier, sc='conv_ds_14')
+        net = _depthwise_separable_conv(net, 1024, width_multiplier, downsample=True, sc='conv_ds_13')
+        net = _depthwise_separable_conv(net, 1024, width_multiplier, sc='conv_ds_14')
         net = slim.avg_pool2d(net, [7, 7], scope='avg_pool_15')
 
     end_points = slim.utils.convert_collection_to_dict(end_points_collection)
