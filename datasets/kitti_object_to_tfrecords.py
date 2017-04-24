@@ -43,6 +43,23 @@ serialized Example proto. The Example proto contains the following fields:
     image/object/bbox/label: list of integer specifying the classification index.
     image/object/bbox/label_text: list of string descriptions.
 
+   1    type         Describes the type of object: 'Car', 'Van', 'Truck',
+                     'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram',
+                     'Misc' or 'DontCare'
+   1    truncated    Float from 0 (non-truncated) to 1 (truncated), where
+                     truncated refers to the object leaving image boundaries
+   1    occluded     Integer (0,1,2,3) indicating occlusion state:
+                     0 = fully visible, 1 = partly occluded
+                     2 = largely occluded, 3 = unknown
+   1    alpha        Observation angle of object, ranging [-pi..pi]
+   4    bbox         2D bounding box of object in the image (0-based index):
+                     contains left, top, right, bottom pixel coordinates
+   3    dimensions   3D object dimensions: height, width, length (in meters)
+   3    location     3D object location x,y,z in camera coordinates (in meters)
+   1    rotation_y   Rotation ry around Y-axis in camera coordinates [-pi..pi]
+   1    score        Only for results: Float, indicating confidence in
+                     detection, needed for p/r curves, higher is better.
+
 Note that the length of xmin is identical to the length of xmax, ymin and ymax
 for each example.
 """
@@ -67,11 +84,15 @@ RANDOM_SEED = 4242
 SAMPLES_PER_FILES = 200
 
 CLASSES = {
-Pedestrian
-Car
-Truck
-Cyclist
-DontCare
+    'Pedestrian': 1,
+    'Cyclist': 2,
+    'Car': 3,
+    'Person_sitting': 4,
+    'Van': 5,
+    'Tram': 6,
+    'Truck': 7,
+    'Misc': 8,
+    'DontCare': 9
 }
 
 
@@ -89,74 +110,69 @@ def _process_image(directory, name):
     # Read the image file.
     filename = os.path.join(directory, DIRECTORY_IMAGES, name + '.png')
     image_data = tf.gfile.FastGFile(filename, 'r').read()
+    img_tensor = tf.image.decode_png(image_data)
+    shape = tf.shape(img_tensor).aslist()
 
     # Read the txt annotation file.
     filename = os.path.join(directory, DIRECTORY_ANNOTATIONS, name + '.txt')
     with open(filename) as anno_file:
       objects = anno_file.readlines()
+
+    label_list = []
+    type_list = []
+    trun_list = []
+    occl_list = []
+    alpha_list = []
+    bbox_x1_list = []
+    bbox_y1_list = []
+    bbox_x2_list = []
+    bbox_y2_list = []
+    ddd_bbox_h_list = []
+    ddd_bbox_w_list = []
+    ddd_bbox_l_list = []
+    ddd_bbox_x_list = []
+    ddd_bbox_y_list = []
+    ddd_bbox_z_list = []
+    ddd_bbox_ry_list = []
+
     for object in objects:
+        obj_anno = object.split(' ')
+        type_txt = obj_anno[0].encode('ascii')
+        truncation = int(obj_anno[1])  # [0..1] truncated pixel ratio
+        occlusion = int(obj_anno[2])  # 0 = visible, 1 = partly occluded, 2 = fully occluded, 3 = unknown
+        alpha = float(obj_anno[3])  # object observation angle([-pi..pi])
 
-    tree = ET.parse(filename)
-    root = tree.getroot()
+        label_list.append(CLASSES[type_txt])
+        type_list.append(type_txt)
+        trun_list.append(truncation)
+        occl_list.append(occlusion)
+        alpha_list.append(alpha)
 
-    # Image shape.
-    size = root.find('size')
-    shape = [int(size.find('height').text),
-             int(size.find('width').text),
-             int(size.find('depth').text)]
-    # Find annotations.
-    bboxes = []
-    labels = []
-    labels_text = []
-    difficult = []
-    truncated = []
-    for obj in root.findall('object'):
-        label = obj.find('name').text
-        labels.append(int(VOC_LABELS[label][0]))
-        labels_text.append(label.encode('ascii'))
+        # Bounding Box
+        bbox_x1 = float(obj_anno[4])
+        bbox_y1 = float(obj_anno[5])
+        bbox_x2 = float(obj_anno[6])
+        bbox_y2 = float(obj_anno[7])
+        bbox_x1_list.append(bbox_x1)
+        bbox_y1_list.append(bbox_y1)
+        bbox_x2_list.append(bbox_x2)
+        bbox_y2_list.append(bbox_y2)
 
-        if obj.find('difficult'):
-            difficult.append(int(obj.find('difficult').text))
-        else:
-            difficult.append(0)
-        if obj.find('truncated'):
-            truncated.append(int(obj.find('truncated').text))
-        else:
-            truncated.append(0)
-
-        bbox = obj.find('bndbox')
-        bboxes.append((float(bbox.find('ymin').text) / shape[0],
-                       float(bbox.find('xmin').text) / shape[1],
-                       float(bbox.find('ymax').text) / shape[0],
-                       float(bbox.find('xmax').text) / shape[1]
-                       ))
-    return image_data, shape, bboxes, labels, labels_text, difficult, truncated
-
-
-def _convert_to_example(image_data, labels, labels_text, bboxes, shape,
-                        difficult, truncated):
-    """Build an Example proto for an image example.
-
-    Args:
-      image_data: string, JPEG encoding of RGB image;
-      labels: list of integers, identifier for the ground truth;
-      labels_text: list of strings, human-readable labels;
-      bboxes: list of bounding boxes; each box is a list of integers;
-          specifying [xmin, ymin, xmax, ymax]. All boxes are assumed to belong
-          to the same label as the image label.
-      shape: 3 integers, image shapes in pixels.
-    Returns:
-      Example proto
-    """
-    xmin = []
-    ymin = []
-    xmax = []
-    ymax = []
-    for b in bboxes:
-        assert len(b) == 4
-        # pylint: disable=expression-not-assigned
-        [l.append(point) for l, point in zip([ymin, xmin, ymax, xmax], b)]
-        # pylint: enable=expression-not-assigned
+        # 3D bounding box
+        ddd_bbox_h = float(obj_anno[8])
+        ddd_bbox_w = float(obj_anno[9])
+        ddd_bbox_l = float(obj_anno[10])
+        ddd_bbox_x = float(obj_anno[11])
+        ddd_bbox_y = float(obj_anno[12])
+        ddd_bbox_z = float(obj_anno[13])
+        ddd_bbox_ry = float(obj_anno[14])
+        ddd_bbox_h_list.append(ddd_bbox_h)
+        ddd_bbox_w_list.append(ddd_bbox_w)
+        ddd_bbox_l_list.append(ddd_bbox_l)
+        ddd_bbox_x_list.append(ddd_bbox_x)
+        ddd_bbox_y_list.append(ddd_bbox_y)
+        ddd_bbox_z_list.append(ddd_bbox_z)
+        ddd_bbox_ry_list.append(ddd_bbox_ry)
 
     image_format = b'PNG'
     example = tf.train.Example(features=tf.train.Features(feature={
@@ -164,24 +180,24 @@ def _convert_to_example(image_data, labels, labels_text, bboxes, shape,
             'image/width': int64_feature(shape[1]),
             'image/channels': int64_feature(shape[2]),
             'image/shape': int64_feature(shape),
-            'image/object/bbox/xmin': float_feature(xmin),
-            'image/object/bbox/xmax': float_feature(xmax),
-            'image/object/bbox/ymin': float_feature(ymin),
-            'image/object/bbox/ymax': float_feature(ymax),
-            'image/object/bbox/label': int64_feature(labels),
-            'image/object/bbox/label_text': bytes_feature(labels_text),
-            'image/object/bbox/occlusion': int64_feature(difficult),
-            'image/object/bbox/truncation': int64_feature(truncated),
-            'image/object/observation/alpha': float_feature(alpha),
+            'image/object/bbox/xmin': float_feature(bbox_x1_list),
+            'image/object/bbox/xmax': float_feature(bbox_x2_list),
+            'image/object/bbox/ymin': float_feature(bbox_y1_list),
+            'image/object/bbox/ymax': float_feature(bbox_y2_list),
+            'image/object/bbox/label': int64_feature(label_list),
+            'image/object/bbox/label_text': bytes_feature(type_list),
+            'image/object/bbox/occlusion': int64_feature(occl_list),
+            'image/object/bbox/truncation': int64_feature(trun_list),
+            'image/object/observation/alpha': float_feature(alpha_list),
             'image/format': bytes_feature(image_format),
             'image/encoded': bytes_feature(image_data),
-            'image/object/3Dbbox/h': float_feature(xmin),
-            'image/object/3Dbbox/w': float_feature(xmax),
-            'image/object/3Dbbox/l': float_feature(ymin),
-            'image/object/3Dbbox/x': float_feature(ymax),
-            'image/object/3Dbbox/y': float_feature(ymax),
-            'image/object/3Dbbox/z': float_feature(ymax),
-            'image/object/3Dbbox/ry': float_feature(ymax)
+            'image/object/3Dbbox/h': float_feature(ddd_bbox_h_list),
+            'image/object/3Dbbox/w': float_feature(ddd_bbox_w_list),
+            'image/object/3Dbbox/l': float_feature(ddd_bbox_l_list),
+            'image/object/3Dbbox/x': float_feature(ddd_bbox_x_list),
+            'image/object/3Dbbox/y': float_feature(ddd_bbox_y_list),
+            'image/object/3Dbbox/z': float_feature(ddd_bbox_z_list),
+            'image/object/3Dbbox/ry': float_feature(ddd_bbox_ry_list)
     }))
     return example
 
@@ -194,10 +210,7 @@ def _add_to_tfrecord(dataset_dir, name, tfrecord_writer):
       name: Image name to add to the TFRecord;
       tfrecord_writer: The TFRecord writer to use for writing.
     """
-    image_data, shape, bboxes, labels, labels_text, difficult, truncated = \
-        _process_image(dataset_dir, name)
-    example = _convert_to_example(image_data, labels, labels_text,
-                                  bboxes, shape, difficult, truncated)
+    example = _process_image(dataset_dir, name)
     tfrecord_writer.write(example.SerializeToString())
 
 
