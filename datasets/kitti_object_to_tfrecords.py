@@ -205,6 +205,8 @@ def run(kitti_root, split, output_dir, shuffling=False):
     i = 0
     fidx = 0
     image_dir = os.path.join(kitti_root, '%sing'%split)
+    if split == 'val':
+      image_dir = os.path.join(kitti_root, '%sing' % 'train')
     while i < len(filenames):
         # Open new TFRecord file.
         tf_filename = _get_output_filename(output_dir, split, fidx)
