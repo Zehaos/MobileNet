@@ -66,18 +66,12 @@ for each example.
 import os
 import sys
 import random
+import re
 
-import numpy as np
 import tensorflow as tf
-
-import xml.etree.ElementTree as ET
-
+import cv2
+import numpy as np
 from datasets.dataset_utils import int64_feature, float_feature, bytes_feature
-from datasets.pascalvoc_common import VOC_LABELS
-
-# Original dataset organisation.
-DIRECTORY_ANNOTATIONS = 'label_2/'
-DIRECTORY_IMAGES = 'image_2/'
 
 # TFRecords convertion parameters.
 RANDOM_SEED = 4242
@@ -96,7 +90,7 @@ CLASSES = {
 }
 
 
-def _process_image(directory, name):
+def _process_image(directory, split, name):
     """Process a image and annotation file.
 
     Args:
@@ -108,15 +102,12 @@ def _process_image(directory, name):
       width: integer, image width in pixels.
     """
     # Read the image file.
-    filename = os.path.join(directory, DIRECTORY_IMAGES, name + '.png')
+    filename = os.path.join(directory, 'image_2', name + '.png')
     image_data = tf.gfile.FastGFile(filename, 'r').read()
-    img_tensor = tf.image.decode_png(image_data)
-    shape = tf.shape(img_tensor).aslist()
 
-    # Read the txt annotation file.
-    filename = os.path.join(directory, DIRECTORY_ANNOTATIONS, name + '.txt')
-    with open(filename) as anno_file:
-      objects = anno_file.readlines()
+    # Get shape
+    img = cv2.imread(filename)
+    shape = np.shape(img)
 
     label_list = []
     type_list = []
@@ -135,44 +126,51 @@ def _process_image(directory, name):
     ddd_bbox_z_list = []
     ddd_bbox_ry_list = []
 
-    for object in objects:
-        obj_anno = object.split(' ')
-        type_txt = obj_anno[0].encode('ascii')
-        truncation = int(obj_anno[1])  # [0..1] truncated pixel ratio
-        occlusion = int(obj_anno[2])  # 0 = visible, 1 = partly occluded, 2 = fully occluded, 3 = unknown
-        alpha = float(obj_anno[3])  # object observation angle([-pi..pi])
+    # If 'test' split, skip annotations
+    if re.findall(r'train', split):
+      # Read the txt annotation file.
+      filename = os.path.join(directory, 'label_2', name + '.txt')
+      with open(filename) as anno_file:
+        objects = anno_file.readlines()
 
-        label_list.append(CLASSES[type_txt])
-        type_list.append(type_txt)
-        trun_list.append(truncation)
-        occl_list.append(occlusion)
-        alpha_list.append(alpha)
+      for object in objects:
+          obj_anno = object.split(' ')
+          type_txt = obj_anno[0].encode('ascii')
+          truncation = float(obj_anno[1])  # [0..1] truncated pixel ratio
+          occlusion = int(obj_anno[2])  # 0 = visible, 1 = partly occluded, 2 = fully occluded, 3 = unknown
+          alpha = float(obj_anno[3])  # object observation angle([-pi..pi])
 
-        # Bounding Box
-        bbox_x1 = float(obj_anno[4])
-        bbox_y1 = float(obj_anno[5])
-        bbox_x2 = float(obj_anno[6])
-        bbox_y2 = float(obj_anno[7])
-        bbox_x1_list.append(bbox_x1)
-        bbox_y1_list.append(bbox_y1)
-        bbox_x2_list.append(bbox_x2)
-        bbox_y2_list.append(bbox_y2)
+          label_list.append(CLASSES[type_txt])
+          type_list.append(type_txt)
+          trun_list.append(truncation)
+          occl_list.append(occlusion)
+          alpha_list.append(alpha)
 
-        # 3D bounding box
-        ddd_bbox_h = float(obj_anno[8])
-        ddd_bbox_w = float(obj_anno[9])
-        ddd_bbox_l = float(obj_anno[10])
-        ddd_bbox_x = float(obj_anno[11])
-        ddd_bbox_y = float(obj_anno[12])
-        ddd_bbox_z = float(obj_anno[13])
-        ddd_bbox_ry = float(obj_anno[14])
-        ddd_bbox_h_list.append(ddd_bbox_h)
-        ddd_bbox_w_list.append(ddd_bbox_w)
-        ddd_bbox_l_list.append(ddd_bbox_l)
-        ddd_bbox_x_list.append(ddd_bbox_x)
-        ddd_bbox_y_list.append(ddd_bbox_y)
-        ddd_bbox_z_list.append(ddd_bbox_z)
-        ddd_bbox_ry_list.append(ddd_bbox_ry)
+          # Bounding Box
+          bbox_x1 = float(obj_anno[4])
+          bbox_y1 = float(obj_anno[5])
+          bbox_x2 = float(obj_anno[6])
+          bbox_y2 = float(obj_anno[7])
+          bbox_x1_list.append(bbox_x1)
+          bbox_y1_list.append(bbox_y1)
+          bbox_x2_list.append(bbox_x2)
+          bbox_y2_list.append(bbox_y2)
+
+          # 3D Bounding Box
+          ddd_bbox_h = float(obj_anno[8])
+          ddd_bbox_w = float(obj_anno[9])
+          ddd_bbox_l = float(obj_anno[10])
+          ddd_bbox_x = float(obj_anno[11])
+          ddd_bbox_y = float(obj_anno[12])
+          ddd_bbox_z = float(obj_anno[13])
+          ddd_bbox_ry = float(obj_anno[14])
+          ddd_bbox_h_list.append(ddd_bbox_h)
+          ddd_bbox_w_list.append(ddd_bbox_w)
+          ddd_bbox_l_list.append(ddd_bbox_l)
+          ddd_bbox_x_list.append(ddd_bbox_x)
+          ddd_bbox_y_list.append(ddd_bbox_y)
+          ddd_bbox_z_list.append(ddd_bbox_z)
+          ddd_bbox_ry_list.append(ddd_bbox_ry)
 
     image_format = b'PNG'
     example = tf.train.Example(features=tf.train.Features(feature={
@@ -187,7 +185,7 @@ def _process_image(directory, name):
             'image/object/bbox/label': int64_feature(label_list),
             'image/object/bbox/label_text': bytes_feature(type_list),
             'image/object/bbox/occlusion': int64_feature(occl_list),
-            'image/object/bbox/truncation': int64_feature(trun_list),
+            'image/object/bbox/truncation': float_feature(trun_list),
             'image/object/observation/alpha': float_feature(alpha_list),
             'image/format': bytes_feature(image_format),
             'image/encoded': bytes_feature(image_data),
@@ -202,7 +200,7 @@ def _process_image(directory, name):
     return example
 
 
-def _add_to_tfrecord(dataset_dir, name, tfrecord_writer):
+def _add_to_tfrecord(dataset_dir, split, name, tfrecord_writer):
     """Loads data from image and annotations files and add them to a TFRecord.
 
     Args:
@@ -210,7 +208,7 @@ def _add_to_tfrecord(dataset_dir, name, tfrecord_writer):
       name: Image name to add to the TFRecord;
       tfrecord_writer: The TFRecord writer to use for writing.
     """
-    example = _process_image(dataset_dir, name)
+    example = _process_image(dataset_dir, split, name)
     tfrecord_writer.write(example.SerializeToString())
 
 
@@ -222,8 +220,8 @@ def run(kitti_root, split, output_dir, shuffling=False):
     """Runs the conversion operation.
 
     Args:
-      voc_root: KITTI dataset root dir.
-      split: train/test
+      kitti_root: KITTI dataset root dir.
+      split: trainval/train/val
       output_dir: Output directory.
     """
     if not tf.gfile.Exists(output_dir):
@@ -243,7 +241,7 @@ def run(kitti_root, split, output_dir, shuffling=False):
     # Process dataset files.
     i = 0
     fidx = 0
-    image_dir = os.path.join(kitti_root, '%sing'%split, 'image_2')
+    image_dir = os.path.join(kitti_root, '%sing'%split)
     while i < len(filenames):
         # Open new TFRecord file.
         tf_filename = _get_output_filename(output_dir, split, fidx)
@@ -254,9 +252,9 @@ def run(kitti_root, split, output_dir, shuffling=False):
                 sys.stdout.flush()
 
                 filename = filenames[i].strip()
-                _add_to_tfrecord(image_dir, filename, tfrecord_writer)
+                _add_to_tfrecord(image_dir, split, filename, tfrecord_writer)
                 i += 1
                 j += 1
             fidx += 1
 
-    print('\nFinished converting the Pascal VOC dataset!')
+    print('\nFinished converting the KITTI dataset!')

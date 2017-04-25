@@ -26,7 +26,7 @@ python tf_convert_data.py \
 """
 import tensorflow as tf
 
-from datasets import pascalvoc_to_tfrecords
+from datasets import pascalvoc_to_tfrecords, kitti_object_to_tfrecords
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -34,26 +34,31 @@ tf.app.flags.DEFINE_string(
     'dataset_name', 'pascalvoc',
     'The name of the dataset to convert.')
 tf.app.flags.DEFINE_string(
-    'voc_root', None,
+    'dataset_root', None,
     'Directory where the original dataset is stored.')
 tf.app.flags.DEFINE_string(
     'year', '0712',
     'Year of VOC dataset.')
 tf.app.flags.DEFINE_string(
     'split', 'trainval',
-    'Split of VOC dataset.')
+    'Split of dataset, trainval/train/val/test.')
 tf.app.flags.DEFINE_string(
     'output_dir', './',
     'Output directory where to store TFRecords files.')
 
 
 def main(_):
-    print('VOC root dir:', FLAGS.voc_root)
+    print('Dataset root dir:', FLAGS.dataset_root)
     print('Output directory:', FLAGS.output_dir)
 
     if FLAGS.dataset_name == 'pascalvoc':
-        pascalvoc_to_tfrecords.run(FLAGS.voc_root,
+        pascalvoc_to_tfrecords.run(FLAGS.dataset_root,
                                    FLAGS.year,
+                                   FLAGS.split,
+                                   FLAGS.output_dir,
+                                   shuffling=True)
+    elif FLAGS.dataset_name == 'kitti':
+        kitti_object_to_tfrecords.run(FLAGS.dataset_root,
                                    FLAGS.split,
                                    FLAGS.output_dir,
                                    shuffling=True)
