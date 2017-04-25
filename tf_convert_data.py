@@ -18,7 +18,7 @@ a TensorFlow pipeline.
 Usage:
 ```shell
 python tf_convert_data.py \
-    --voc_root=VOCdevkit \
+    --datset_root=VOCdevkit \
     --year=0712 \
     --split=trainval \
     --output_dir=/tmp/pascalvoc0712_tfrecord
