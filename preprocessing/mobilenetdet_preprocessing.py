@@ -147,9 +147,19 @@ def flip_with_bboxes(image, bboxes):
   return image, bboxes
 
 
-def jitter_with_bboxes(image, bboxes):
-  pass
-
+"""
+def shift_with_bboxes(image, bboxes):
+  shift_ratio = 0.2  # TODO(shizehao): remove hard code
+  image = tf.convert_to_tensor(image)
+  check_3d_image(image)
+  img_h, img_w, _ = image.get_shape.aslist()
+  shift_x = tf.random_uniform([], -shift_ratio, shift_ratio) * img_w
+  shift_y = tf.random_uniform([], -shift_ratio, shift_ratio) * img_h
+  tf.image.crop_to_bounding_box()
+  tf.image.resize_image_with_crop_or_pad()
+  tf.image.pad_to_bounding_box()
+  return image, bboxes
+"""
 
 def preprocess_for_train(image, height, width, labels, bboxes,
                          fast_mode=True,
