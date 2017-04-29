@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
+import numpy as np
 from configs import kitti_config as configs
 
 
@@ -22,6 +23,51 @@ def encode_annos(image, labels, bboxes):
   """
   #return input_mask, labels, ious, box_delta_input
   pass
+
+
+def set_anchors(img_shape, fea_shape):
+  """Set anchors.
+
+  Args:
+    img_shape: 1-D list with shape `[2]`.
+    fea_shape: 1-D list with shape `[2]`.
+
+  Returns:
+    anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
+
+  """
+  img_h = img_shape[0]
+  img_w = img_shape[1]
+  fea_h = fea_shape[0]
+  fea_w = fea_shape[1]
+
+  anchor_shape = tf.constant(anchor_shape, dtype=tf.float32)
+  anchor_shapes = tf.concat(
+    [anchor_shape for i in range(fea_w * fea_h)], 0
+  )
+  anchor_shapes = tf.reshape(anchor_shapes, [fea_h, fea_w, 9, 2])
+
+  center_x = tf.truediv(
+    tf.range(1, fea_w + 1, 1, dtype=tf.float32) * img_w,
+    float(fea_w + 1)
+  )
+  center_x = tf.concat(
+    [center_x for i in range(fea_h * 9)], 0
+  )
+  center_x = tf.reshape(center_x, [fea_h, fea_w, 9, 1])
+
+  center_y = tf.truediv(
+    tf.range(1, fea_h + 1, 1, dtype=tf.float32) * img_h,
+    float(fea_h + 1)
+  )
+  center_y = tf.concat(
+    [center_y for i in range(fea_w * 9)], 0
+  )
+  center_y = tf.reshape(center_y, [fea_h, fea_w, 9, 1])
+
+  anchors = tf.concat([center_x, center_y, anchor_shapes], 3)
+
+  return anchors
 
 
 def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta):
