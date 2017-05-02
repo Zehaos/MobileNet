@@ -3,26 +3,105 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-import numpy as np
 from configs import kitti_config as configs
 
 
-def encode_annos(image, labels, bboxes):
+def xywh_to_yxyx(bbox):
+  [x, y, w, h] = tf.unstack(bbox)
+  y_min = y - 0.5 * h
+  x_min = x - 0.5 * w
+  y_max = y + 0.5 * h
+  x_max = x - 0.5 * w
+  return tf.stack([y_min, x_min, y_max, x_max])
+
+
+def yxyx_to_xywh(bbox):
+  [y_min, x_min, y_max, x_max] = tf.unstack(bbox)
+  x = 0.5 * (x_min + x_max)
+  y = 0.5 * (y_min + y_max)
+  w = x_max - x_min
+  h = y_max - y_min
+  return tf.stack([x, y, w, h])
+
+
+def iou(bbox_1, bbox_2):
+  """Compute iou of a box with another box. Box format '[y_min, x_min, y_max, x_max]'.
+  Args:
+    bbox_1: 1-D with shape `[4]`.
+    bbox_2: 1-D with shape `[4]`.
+
+  Returns:
+    IOU
+  """
+  lr = tf.minimum(bbox_1[3], bbox_2[3]) - tf.maximum(bbox_1[1], bbox_2[1])
+  if lr > 0:
+    tb = tf.minimum(bbox_1[2], bbox_2[2]) - tf.maximum(bbox_1[0], bbox_2[0])
+    if tb > 0:
+      intersection = lr*tb
+      union = (bbox_1[3]-bbox_1[1])*(bbox_1[2]-bbox_1[0])\
+              +(bbox_2[3]-bbox_2[1])*(bbox_2[2]-bbox_2[0])\
+              -intersection
+      return intersection/union
+  return 0
+
+
+
+def batch_iou(bboxes, bbox):
+  """Compute iou of a batch of boxes with another box. Box format '[y_min, x_min, y_max, x_max]'.
+  Args:
+    bboxes: A batch of boxes. 2-D with shape `[B, 4]`.
+    bbox: A single box. 1-D with shape `[4]`.
+
+  Returns:
+    Batch of IOUs
+  """
+  lr = tf.maximum(
+      tf.minimum(bboxes[:, 3], bbox[3]) - \
+      tf.maximum(bboxes[:, 1], bbox[1]),
+      0
+  )
+  tb = tf.maximum(
+      tf.minimum(bboxes[:, 2], bbox[2]) - \
+      tf.maximum(bboxes[:, 0], bbox[0]),
+      0
+  )
+  intersection = lr*tb
+  union = (bboxes[3] - bboxes[1]) * (bboxes[2] - bboxes[0]) \
+          + (bbox[3] - bbox[1]) * (bbox[2] - bbox[0]) \
+          - intersection
+  return intersection/union
+
+
+def encode_annos(image_shape, labels, bboxes, anchors):
   """Encode annotations for losses computations.
 
   Args:
-    image: 3-D with shape `[H, W, C]`.
-    labels: 1-D with shape `[num_bounding_boxes]`.
-    bboxes: 2-D with shape `[num_bounding_boxes, 4]`.
+    images: 4-D with shape `[B, H, W, C]`.
+    labels: 2-D with shape `[B, num_bounding_boxes]`.
+    bboxes: 3-D with shape `[B, num_bounding_boxes, 4]`.
+    anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
 
   Returns:
-    input_mask: 1-D with shape `[num_anchors]`, indicate which anchor to be used to cal loss.
-    labels: 2-D with shape `[num_anchors, num_classes]`, one hot encode for every anchor.
-    ious: 1-D with shape `[num_anchors]`.
-    box_delta_input: 2-D with shape `[num_anchors, 4]`.
+    input_mask: 2-D with shape `[B, num_anchors]`, indicate which anchor to be used to cal loss.
+    labels: 3-D with shape `[B, num_anchors, num_classes]`, one hot encode for every anchor.
+    box_delta_input: 3-D with shape `[B, num_anchors, 4]`.
   """
-  #return input_mask, labels, ious, box_delta_input
-  pass
+  batch_size = image_shape[0]
+  img_h = image_shape[1]
+  img_w = image_shape[2]
+
+  shape = anchors.get_shape().as_list()[0]
+  fea_h = shape[0]
+  fea_w = shape[1]
+  num_anchors = shape[2]
+
+  input_mask = tf.zeros([batch_size, fea_h, fea_w, num_anchors])
+  labels = tf.zeros([batch_size, fea_h, fea_w, configs.NUM_CLASSES])
+  box_delta_input = tf.zeros([batch_size, fea_h, fea_w, 4])
+
+  # reshape to [batch, num_anchors
+
+  return input_mask, labels, box_delta_input
 
 
 def set_anchors(img_shape, fea_shape):
