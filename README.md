@@ -19,6 +19,11 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 <img src="https://github.com/Zehaos/MobileNet/blob/master/figures/epoch90_full_preprocess.png"><br><br>
 </div>
 
+## Time Benchmark
+| Device | Time |Remark|
+|--------|:---------:|:---------:|
+|Xeon(R) E3-1231 v3 @ 3.40GHz|0.052 +/- 0.001 sec / img|Without instruction set acceleration|
+|GTX1060|0.004 +/- 0.000 sec / img|CUDA8.0, CUDNN5.1|
 ## Usage
 
 ### First
