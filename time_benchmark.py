@@ -32,26 +32,35 @@ def time_tensorflow_run(session, target, info_string):
 
 def run_benchmark():
   with tf.Graph().as_default():
-    # Generate some dummy images.
-    # batch_size = 128
-    # num_batches = 100
-    image_size = 224
-    inputs = tf.Variable(tf.random_normal([FLAGS.batch_size,
-                                           image_size,
-                                           image_size, 3],
-                                          dtype=tf.float32,
-                                          stddev=1e-1))
+    #with tf.device('/gpu:0'):
+    with tf.device('/cpu:0'):
+      # Generate some dummy images.
+      image_size = 224
+      inputs = tf.Variable(tf.random_normal([FLAGS.batch_size,
+                                             image_size,
+                                             image_size, 3],
+                                            dtype=tf.float32,
+                                            stddev=1e-1))
 
-    with slim.arg_scope(mobilenet_arg_scope()):
-      logits, end_points = mobilenet(inputs, is_training=False)
+      with slim.arg_scope(mobilenet_arg_scope()):
+        logits, end_points = mobilenet(inputs, is_training=False)
 
-    init = tf.global_variables_initializer()
-    config = tf.ConfigProto()
-    config.gpu_options.allocator_type = 'BFC'
-    sess = tf.Session(config=config)
-    sess.run(init)
+      init = tf.global_variables_initializer()
+      config = tf.ConfigProto()
+      config.gpu_options.allocator_type = 'BFC'
+      sess = tf.Session(config=config)
+      sess.run(init)
 
-    time_tensorflow_run(sess, logits, "Forward")
+      time_tensorflow_run(sess, logits, "Forward")
+
+      # Add a simple objective so we can calculate the backward pass.
+      objective = tf.nn.l2_loss(logits)
+
+      # Compute the gradient with respect to all the parameters.
+      grad = tf.gradients(objective, tf.trainable_variables())
+
+      # Run the backward benchmark.
+      time_tensorflow_run(sess, grad, "Forward-backward")
 
 def main(_):
   run_benchmark()
@@ -68,7 +77,7 @@ if __name__ == '__main__':
   parser.add_argument(
     '--num_batches',
     type=int,
-    default=100,
+    default=300,
     help='Number of batches to run.'
   )
   FLAGS, unparsed = parser.parse_known_args()

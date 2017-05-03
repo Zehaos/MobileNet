@@ -20,24 +20,28 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 </div>
 
 ## Time Benchmark
-| Device | Time |Remark|
-|--------|:---------:|:---------:|
-|Xeon(R) E3-1231 v3 @ 3.40GHz|0.052 +/- 0.001 sec / img|Without instruction set acceleration|
-|GTX1060|0.004 +/- 0.000 sec / img|CUDA8.0, CUDNN5.1|
+Environment: Ubuntu 16.04 LTS, Tensorflow 1.0.1 (native pip install).
+
+| Device | Forward| Forward-Backward |Remark|
+|--------|:---------:|:---------:|:---------:|
+|Xeon E3-1231 v3, 8 Cores @ 3.40GHz|52ms / img|503ms / img|Without instruction set acceleration|
+|NVIDIA GTX1060|3ms / img|16ms / img|CUDA8.0, CUDNN5.1|
+
 ## Usage
 
-### First
+### Train on Imagenet
 
-Prepare imagenet data.
+1. Prepare imagenet data. Please refer to Google's tutorial for [training inception](https://github.com/tensorflow/models/tree/master/inception#getting-started).
 
-Please refer to Google's tutorial for [training inception](https://github.com/tensorflow/models/tree/master/inception#getting-started).
-
-### Second
-
-Modify './script/train_mobilenet_on_imagenet.sh' according to your environment.
+2. Modify './script/train_mobilenet_on_imagenet.sh' according to your environment.
 
 ```
 bash ./script/train_mobilenet_on_imagenet.sh
+```
+
+### Benchmark speed
+```
+python time_benchmark.py
 ```
 
 ## Trouble Shooting
@@ -51,6 +55,7 @@ When using RMSprop training strategy, the checkpoint file size should be almost 
 2. Pretrained weight
 
 Welcome to share if you had trained a better model.
+
 
 ## TODO
 - [x] Train on Imagenet
