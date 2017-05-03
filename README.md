@@ -24,7 +24,7 @@ Environment: Ubuntu 16.04 LTS, Tensorflow 1.0.1 (native pip install).
 
 | Device | Forward| Forward-Backward |Remark|
 |--------|:---------:|:---------:|:---------:|
-|Xeon E3-1231 v3, 8 Cores @ 3.40GHz|52ms / img|503ms / img|Without instruction set acceleration|
+|Xeon E3-1231 v3, 4 Cores @ 3.40GHz|52ms / img|503ms / img|Without instruction set acceleration|
 |NVIDIA GTX1060|3ms / img|16ms / img|CUDA8.0, CUDNN5.1|
 
 ## Usage
