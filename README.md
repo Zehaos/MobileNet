@@ -8,6 +8,17 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 <img src="https://github.com/Zehaos/MobileNet/blob/master/figures/dwl_pwl.png"><br><br>
 </div>
 
+## Accuracy on ImageNet-2012 Validation Set
+
+| Model | Width Multiplier |Preprocessing  | Accuracy-Top1|Accuracy-Top5 |
+|--------|:---------:|:------:|:------:|:------:|
+| [MobileNet](https://pan.baidu.com/s/1b9OmHS) |1.0| Same as Inception | 66.51% | 87.09% |
+
+**Loss**
+<div align="center">
+<img src="https://github.com/Zehaos/MobileNet/blob/master/figures/epoch90_full_preprocess.png"><br><br>
+</div>
+
 ## Usage
 
 ### First
@@ -34,12 +45,12 @@ When using RMSprop training strategy, the checkpoint file size should be almost 
 
 2. Pretrained weight
 
-The training is in progress， I will make the weights available when it is finished. Please stay tuned～
+Welcome to share if you had trained a better model.
 
 ## TODO
 - [x] Train on Imagenet
 - [x] Add Width Multiplier Hyperparameters
-- [ ] Report training result
+- [x] Report training result
 - [ ] Intergrate into object detection task
 
 ## Reference
