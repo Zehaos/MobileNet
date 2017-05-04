@@ -9,13 +9,11 @@ from tensorflow.python.framework import graph_util
 dir = os.path.dirname(os.path.realpath(__file__))
 
 
-def freeze_graph(model_folder):
-  # We retrieve our checkpoint fullpath
-  checkpoint = tf.train.get_checkpoint_state(model_folder)
-  input_checkpoint = checkpoint.model_checkpoint_path
+def freeze_graph(ckpt_path):
+  input_checkpoint = ckpt_path
 
   # We precise the file fullname of our freezed graph
-  absolute_model_folder = "/".join(input_checkpoint.split('/')[:-1])
+  absolute_model_folder = os.path.split(ckpt_path)[0]
   output_graph = absolute_model_folder + "/frozen_model.pb"
 
   # Before exporting our graph, we need to precise what is our output node
@@ -52,7 +50,7 @@ def freeze_graph(model_folder):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument("--model_folder", type=str, help="Model folder to export")
+  parser.add_argument("--ckpt_path", type=str, help="Model file to export")
   args = parser.parse_args()
 
-freeze_graph(args.model_folder)
+freeze_graph(args.ckpt_path)
