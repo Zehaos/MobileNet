@@ -32,8 +32,8 @@ def time_tensorflow_run(session, target, info_string):
 
 def run_benchmark():
   with tf.Graph().as_default():
-    #with tf.device('/gpu:0'):
-    with tf.device('/cpu:0'):
+    with tf.device('/gpu:0'):
+    #with tf.device('/cpu:0'):
       # Generate some dummy images.
       image_size = 224
       inputs = tf.Variable(tf.random_normal([FLAGS.batch_size,
@@ -77,7 +77,7 @@ if __name__ == '__main__':
   parser.add_argument(
     '--num_batches',
     type=int,
-    default=300,
+    default=100,
     help='Number of batches to run.'
   )
   FLAGS, unparsed = parser.parse_known_args()
