@@ -59,7 +59,8 @@ def mobilenet(inputs,
                         outputs_collections=[end_points_collection]):
       with slim.arg_scope([slim.batch_norm],
                           is_training=is_training,
-                          activation_fn=tf.nn.relu):
+                          activation_fn=tf.nn.relu,
+                          fused=True):
         net = slim.convolution2d(inputs, round(32 * width_multiplier), [3, 3], stride=2, padding='SAME', scope='conv_1')
         net = slim.batch_norm(net, scope='conv_1/batch_norm')
         net = _depthwise_separable_conv(net, 64, width_multiplier, sc='conv_ds_2')
