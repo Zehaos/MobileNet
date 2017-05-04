@@ -8,20 +8,42 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 <img src="https://github.com/Zehaos/MobileNet/blob/master/figures/dwl_pwl.png"><br><br>
 </div>
 
+## Accuracy on ImageNet-2012 Validation Set
+
+| Model | Width Multiplier |Preprocessing  | Accuracy-Top1|Accuracy-Top5 |
+|--------|:---------:|:------:|:------:|:------:|
+| MobileNet |1.0| Same as Inception | 66.51% | 87.09% |
+
+[Click](https://pan.baidu.com/s/1b9OmHS) to download the pretrained weight.
+
+**Loss**
+<div align="center">
+<img src="https://github.com/Zehaos/MobileNet/blob/master/figures/epoch90_full_preprocess.png"><br><br>
+</div>
+
+## Time Benchmark
+Environment: Ubuntu 16.04 LTS, Tensorflow 1.0.1 (native pip install).
+
+| Device | Forward| Forward-Backward |Remark|
+|--------|:---------:|:---------:|:---------:|
+|Xeon E3-1231 v3, 4 Cores @ 3.40GHz|52ms / img|503ms / img|Without instruction set acceleration|
+|NVIDIA GTX1060|3ms / img|16ms / img|CUDA8.0, CUDNN5.1|
+
 ## Usage
 
-### First
+### Train on Imagenet
 
-Prepare imagenet data.
+1. Prepare imagenet data. Please refer to Google's tutorial for [training inception](https://github.com/tensorflow/models/tree/master/inception#getting-started).
 
-Please refer to Google's tutorial for [training inception](https://github.com/tensorflow/models/tree/master/inception#getting-started).
-
-### Second
-
-Modify './script/train_mobilenet_on_imagenet.sh' according to your environment.
+2. Modify './script/train_mobilenet_on_imagenet.sh' according to your environment.
 
 ```
 bash ./script/train_mobilenet_on_imagenet.sh
+```
+
+### Benchmark speed
+```
+python time_benchmark.py
 ```
 
 ## Trouble Shooting
@@ -34,12 +56,13 @@ When using RMSprop training strategy, the checkpoint file size should be almost 
 
 2. Pretrained weight
 
-The training is in progress， I will make the weights available when it is finished. Please stay tuned～
+Welcome to share if you had trained a better model.
+
 
 ## TODO
 - [x] Train on Imagenet
 - [x] Add Width Multiplier Hyperparameters
-- [ ] Report training result
+- [x] Report training result
 - [ ] Intergrate into object detection task
 
 ## Reference
