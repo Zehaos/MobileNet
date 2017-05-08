@@ -14,7 +14,7 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 |--------|:---------:|:------:|:------:|:------:|
 | MobileNet |1.0| Same as Inception | 66.51% | 87.09% |
 
-[Click](https://pan.baidu.com/s/1b9OmHS) to download the pretrained weight.
+[Click](https://pan.baidu.com/s/1i5xFjal) to download the pretrained weight.
 
 **Loss**
 <div align="center">
