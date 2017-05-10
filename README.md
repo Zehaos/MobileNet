@@ -32,8 +32,8 @@ Environment: Ubuntu 16.04 LTS, Xeon E3-1231 v3, 4 Cores @ 3.40GHz, GTX1060.
 |CPU|26ms / img| 75ms / img |AVX2|-|-|TF 1.1.0|
 |CPU|128ms / img| - |AVX2|8-bits|-|TF 1.1.0|
 |CPU|19ms / img| 89ms / img |AVX2|-|On|TF 1.1.0|
-|GPU|3ms / img|16ms / img|-|-|-|CUDA8.0, CUDNN5.1|
-|GPU|3ms / img|15ms / img|-|-|On|CUDA8.0, CUDNN5.1|
+|GPU|3ms / img|16ms / img|-|-|-|TF 1.0.1, CUDA8.0, CUDNN5.1|
+|GPU|3ms / img|15ms / img|-|-|On|TF 1.0.1, CUDA8.0, CUDNN5.1|
 
 ## Usage
 
