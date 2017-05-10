@@ -24,16 +24,22 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 ## Time Benchmark
 Environment: Ubuntu 16.04 LTS, Xeon E3-1231 v3, 4 Cores @ 3.40GHz, GTX1060.
 
+TF 1.0.1(native pip install), TF 1.1.0(build from source, optimization flag '-mavx2')
+
+Input image size: (224, 224, 3)
+
+Batch size: 1
+
 | Device | Forward| Forward-Backward |Instruction set|Quantized|Fused-BN|Remark|
 |--------|:---------:|:---------:|:---------:|:---------:|:---------:|:---------:|
-|CPU|52ms / img|503ms / img|-|-|-|TF 1.0.1|
-|CPU|44ms / img|177ms / img|-|-|On|TF 1.0.1|
-|CPU|31ms / img| - |-|8-bits|-|TF 1.0.1|
-|CPU|26ms / img| 75ms / img |AVX2|-|-|TF 1.1.0|
-|CPU|128ms / img| - |AVX2|8-bits|-|TF 1.1.0|
-|CPU|19ms / img| 89ms / img |AVX2|-|On|TF 1.1.0|
-|GPU|3ms / img|16ms / img|-|-|-|TF 1.0.1, CUDA8.0, CUDNN5.1|
-|GPU|3ms / img|15ms / img|-|-|On|TF 1.0.1, CUDA8.0, CUDNN5.1|
+|CPU|52ms|503ms|-|-|-|TF 1.0.1|
+|CPU|44ms|177ms|-|-|On|TF 1.0.1|
+|CPU|31ms| - |-|8-bits|-|TF 1.0.1|
+|CPU|26ms| 75ms|AVX2|-|-|TF 1.1.0|
+|CPU|128ms| - |AVX2|8-bits|-|TF 1.1.0|
+|CPU|**19ms**| 89ms|AVX2|-|On|TF 1.1.0|
+|GPU|3ms|16ms|-|-|-|TF 1.0.1, CUDA8.0, CUDNN5.1|
+|GPU|**3ms**|15ms|-|-|On|TF 1.0.1, CUDA8.0, CUDNN5.1|
 
 ## Usage
 
