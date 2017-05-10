@@ -19,7 +19,7 @@ from datasets import kitti_common
 
 slim = tf.contrib.slim
 
-FILE_PATTERN = 'kitti_object_%s_*.tfrecord'
+FILE_PATTERN = '%s_*.tfrecord'
 
 ITEMS_TO_DESCRIPTIONS = {
     'image': 'A color image of varying height and width.',

@@ -8,6 +8,7 @@ input_checkpoint = '/home/zehao/PycharmProjects/MobileNet/mobilenet-model/model.
 # Where to save the modified graph
 save_path = '/home/zehao/PycharmProjects/MobileNet/mobilenet-model/with_placeholder'
 
+# TODO(shizehao): use graph editor library insead
 with tf.Graph().as_default() as graph:
   input_images = tf.placeholder(tf.float32, [None, 224, 224, 3], 'MobileNet/input_images')
   logits, predictions = mobilenet(inputs=input_images, num_classes=1001, is_training=False)

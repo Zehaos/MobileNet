@@ -461,27 +461,30 @@ def main(_):
       # input_mask, labels, ious, box_delta_input = encode_annos(image, labels, bboxes)
 
       # expand_dims
-      images, labels = tf.train.batch(
-        [image, label],
+      image, gt_labels, gt_bboxes = tf.train.batch(
+        [image, gt_labels, gt_bboxes],
         batch_size=FLAGS.batch_size,
         num_threads=FLAGS.num_preprocessing_threads,
         capacity=5 * FLAGS.batch_size)
-      labels = slim.one_hot_encoding(
-        labels, dataset.num_classes - FLAGS.labels_offset)
+      #labels = slim.one_hot_encoding(
+        #labels, dataset.num_classes - FLAGS.labels_offset)
       batch_queue = slim.prefetch_queue.prefetch_queue(
-        [images, labels], capacity=2 * deploy_config.num_clones)
+        [image, gt_labels, gt_bboxes], capacity=2 * deploy_config.num_clones)
 
     ####################
     # Define the model #
     ####################
     def clone_fn(batch_queue):
       """Allows data parallelism by creating multiple clones of network_fn."""
-      images, labels = batch_queue.dequeue()
+      # TODO(shizehao): add detection model with loss
+      image, gt_labels, gt_bboxes = batch_queue.dequeue()
+      """
       logits, end_points = network_fn(images)
 
       #############################
       # Specify the loss function #
       #############################
+
       if 'AuxLogits' in end_points:
         tf.losses.softmax_cross_entropy(
           logits=end_points['AuxLogits'], onehot_labels=labels,
@@ -489,7 +492,8 @@ def main(_):
       tf.losses.softmax_cross_entropy(
         logits=logits, onehot_labels=labels,
         label_smoothing=FLAGS.label_smoothing, weights=1.0)
-      return end_points
+      return end_points"""
+      return image, gt_labels, gt_bboxes  # test fetch data
 
     # Gather initial summaries.
     summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))

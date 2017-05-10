@@ -2,6 +2,9 @@ import tensorflow as tf
 from scipy.misc import imread, imresize
 import numpy as np
 
+# Quantize
+use_quantized_graph = True
+
 # Read image
 img = imread("/home/zehao/Desktop/dog.png")
 img = imresize(img, (224, 224, 3))
@@ -13,8 +16,11 @@ img = img / 255.
 img = img - 0.5
 img = img * 2.
 
-# Define the filename of the frozen graph
-graph_filename = "../mobilenet-model/with_placeholder/frozen_graph.pb"
+# Graph
+if use_quantized_graph:
+  graph_filename = "../mobilenet-model/with_placeholder/quantized_graph.pb"
+else:
+  graph_filename = "../mobilenet-model/with_placeholder/frozen_graph.pb"
 
 # Create labels dict from labels.txt
 labels_file = "/home/zehao/Dataset/imagenet-data/labels.txt"
