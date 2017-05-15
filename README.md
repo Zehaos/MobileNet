@@ -66,10 +66,9 @@ According to the paper, MobileNet has 3.3 Million Parameters, which does not var
 
 When using RMSprop training strategy, the checkpoint file size should be almost 3 times as large as the model size, because of some auxiliary parameters used in RMSprop. You can use the inspect_checkpoint.py to figure it out.
 
-2. Pretrained weight
+2. Slim multi-gpu performance problems
 
-Welcome to share if you had trained a better model.
-
+[#1390](https://github.com/tensorflow/models/issues/1390)
 
 ## TODO
 - [x] Train on Imagenet
