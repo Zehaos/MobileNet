@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-from configs import kitti_config as configs
+from configs.kitti_config import config
 
 
 def xywh_to_yxyx(bbox):
@@ -11,7 +11,7 @@ def xywh_to_yxyx(bbox):
   y_min = y - 0.5 * h
   x_min = x - 0.5 * w
   y_max = y + 0.5 * h
-  x_max = x - 0.5 * w
+  x_max = x + 0.5 * w
   return tf.stack([y_min, x_min, y_max, x_max])
 
 
@@ -34,16 +34,17 @@ def iou(bbox_1, bbox_2):
     IOU
   """
   lr = tf.minimum(bbox_1[3], bbox_2[3]) - tf.maximum(bbox_1[1], bbox_2[1])
-  if lr > 0:
-    tb = tf.minimum(bbox_1[2], bbox_2[2]) - tf.maximum(bbox_1[0], bbox_2[0])
-    if tb > 0:
-      intersection = lr*tb
-      union = (bbox_1[3]-bbox_1[1])*(bbox_1[2]-bbox_1[0])\
-              +(bbox_2[3]-bbox_2[1])*(bbox_2[2]-bbox_2[0])\
-              -intersection
-      return intersection/union
-  return 0
-
+  tb = tf.minimum(bbox_1[2], bbox_2[2]) - tf.maximum(bbox_1[0], bbox_2[0])
+  lr = tf.maximum(lr, lr * 0)
+  tb = tf.maximum(tb, tb * 0)
+  intersection = tf.multiply(tb, lr)
+  union = tf.subtract(
+    tf.multiply((bbox_1[3] - bbox_1[1]), (bbox_1[2] - bbox_1[0])) +
+    tf.multiply((bbox_2[3] - bbox_2[1]), (bbox_2[2] - bbox_2[0])),
+    intersection
+  )
+  iou = tf.div(intersection, union)
+  return iou
 
 
 def batch_iou(bboxes, bbox):
@@ -55,24 +56,44 @@ def batch_iou(bboxes, bbox):
   Returns:
     Batch of IOUs
   """
+  num_bboxes = bboxes.get_shape().as_list()[0]
   lr = tf.maximum(
-      tf.minimum(bboxes[:, 3], bbox[3]) - \
-      tf.maximum(bboxes[:, 1], bbox[1]),
-      0
+    tf.minimum(bboxes[:, 3], bbox[3]) -
+    tf.maximum(bboxes[:, 1], bbox[1]),
+    0
   )
   tb = tf.maximum(
-      tf.minimum(bboxes[:, 2], bbox[2]) - \
-      tf.maximum(bboxes[:, 0], bbox[0]),
-      0
+    tf.minimum(bboxes[:, 2], bbox[2]) -
+    tf.maximum(bboxes[:, 0], bbox[0]),
+    0
   )
-  intersection = lr*tb
-  union = (bboxes[3] - bboxes[1]) * (bboxes[2] - bboxes[0]) \
-          + (bbox[3] - bbox[1]) * (bbox[2] - bbox[0]) \
-          - intersection
-  return intersection/union
+  intersection = tf.multiply(tb, lr)
+  union = tf.subtract(
+    tf.multiply((bboxes[:, 3] - bboxes[:, 1]), (bboxes[:, 2] - bboxes[:, 0])) +
+    tf.multiply((bbox[3] - bbox[1]), (bbox[2] - bbox[0])),
+    intersection
+  )
+  iou = tf.div(intersection, union)
+  return iou
 
 
-def encode_annos(image_shape, labels, bboxes, anchors):
+def compute_delta(gt_box, anchor):
+  """Compute delta, anchor+delta = gt_box. Box format '[cx, cy, w, h]'.
+  Args:
+    gt_box: A batch of boxes. 2-D with shape `[B, 4]`.
+    anchor: A single box. 1-D with shape `[4]`.
+
+  Returns:
+    delta: 1-D tensor with shape '[4]', [dx, dy, dw, dh]
+  """
+  delta_x = (gt_box[0] - anchor[0]) / gt_box[2]
+  delta_y = (gt_box[1] - anchor[1]) / gt_box[3]
+  delta_w = tf.log(gt_box[2] / anchor[2])
+  delta_h = tf.log(gt_box[3] / anchor[3])
+  return tf.stack([delta_x, delta_y, delta_w, delta_h], axis=0)
+
+
+def encode_annos(images, labels, bboxes, anchors, num_classes):
   """Encode annotations for losses computations.
 
   Args:
@@ -83,25 +104,74 @@ def encode_annos(image_shape, labels, bboxes, anchors):
 
   Returns:
     input_mask: 2-D with shape `[B, num_anchors]`, indicate which anchor to be used to cal loss.
-    labels: 3-D with shape `[B, num_anchors, num_classes]`, one hot encode for every anchor.
+    labels_input: 3-D with shape `[B, num_anchors, num_classes]`, one hot encode for every anchor.
     box_delta_input: 3-D with shape `[B, num_anchors, 4]`.
+    box_input: 3-D with shape '[B, num_anchors, 4]'.
   """
-  batch_size = image_shape[0]
-  img_h = image_shape[1]
-  img_w = image_shape[2]
+  images_shape = images.get_shape().as_list()[0]
+  batch_size = images_shape[0]
+  img_h = images_shape[1]
+  img_w = images_shape[2]
 
-  shape = anchors.get_shape().as_list()[0]
-  fea_h = shape[0]
-  fea_w = shape[1]
-  num_anchors = shape[2]
+  anchors_shape = anchors.get_shape().as_list()[0]
+  fea_h = anchors_shape[0]
+  fea_w = anchors_shape[1]
+  num_anchors = anchors_shape[2]
 
-  input_mask = tf.zeros([batch_size, fea_h, fea_w, num_anchors])
-  labels = tf.zeros([batch_size, fea_h, fea_w, configs.NUM_CLASSES])
-  box_delta_input = tf.zeros([batch_size, fea_h, fea_w, 4])
+  bboxes_shape = bboxes.get_shape().as_list()[0]
+  num_obj = bboxes_shape[1]
 
-  # reshape to [batch, num_anchors
+  anchor_idx_list = []
+  onehot_aid_list = []
+  onehot_labels_list = []
+  batch_onehot_labels_list = []
+  batch_bboxes_list = []
+  bbox_list = []
+  delta_list = []
+  batch_delta_list = []
+  for i in range(batch_size):  # for each image
+    for j in range(num_obj):  # for each bbox
+      # bbox
+      bbox = bboxes[i][j]
+      bbox_list.append(bbox)
+      # label
+      label = labels[i][j]
+      onehot_labels_list.append(tf.one_hot(label, num_classes))  # collect anchor cls
+      # anchor
+      ious = batch_iou(anchors, bbox)  # TODO(shizehao): reshape anchors
+      anchors_idx = tf.arg_max(ious, dimension=0)  # find the target anchor
+      anchor_idx_list.append(anchors_idx)  # collect anchor idx
+      # delta
+      delta_list.append(compute_delta(bbox, anchors[anchors_idx]))
 
-  return input_mask, labels, box_delta_input
+    # bbox
+    batch_bboxes_list.append(
+      tf.expand_dims(
+        tf.scatter_nd(tf.constant(anchor_idx_list), bbox_list),
+        0)
+    )
+    # label
+    batch_onehot_labels_list.append(
+      tf.expand_dims(
+        tf.scatter_nd(tf.constant(anchor_idx_list), onehot_labels_list),
+        0)
+    )
+    # anchor
+    onehot_anchor = tf.one_hot(anchor_idx_list, num_anchors)
+    onehot_aid_list.append(tf.reduce_sum(onehot_anchor, axis=0))
+    # delta
+    batch_delta_list.append(
+      tf.expand_dims(
+        tf.scatter_nd(tf.constant(anchor_idx_list), delta_list),
+        0)
+    )
+
+  input_mask = tf.stack(onehot_aid_list, axis=0)
+  labels_input = tf.stack(batch_onehot_labels_list, axis=0)
+  box_input = tf.stack(batch_bboxes_list, axis=0)
+  box_delta_input = tf.stack(batch_delta_list, axis=0)
+
+  return input_mask, labels_input, box_delta_input, box_input
 
 
 def set_anchors(img_shape, fea_shape):
@@ -120,7 +190,7 @@ def set_anchors(img_shape, fea_shape):
   fea_h = fea_shape[0]
   fea_w = fea_shape[1]
 
-  anchor_shape = tf.constant(anchor_shape, dtype=tf.float32)
+  anchor_shape = tf.constant(config.ANCHOR_SHAPE, dtype=tf.float32)
   anchor_shapes = tf.concat(
     [anchor_shape for i in range(fea_w * fea_h)], 0
   )
