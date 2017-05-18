@@ -108,17 +108,17 @@ def encode_annos(images, labels, bboxes, anchors, num_classes):
     box_delta_input: 3-D with shape `[B, num_anchors, 4]`.
     box_input: 3-D with shape '[B, num_anchors, 4]'.
   """
-  images_shape = images.get_shape().as_list()[0]
+  images_shape = images.get_shape().as_list()
   batch_size = images_shape[0]
   img_h = images_shape[1]
   img_w = images_shape[2]
 
-  anchors_shape = anchors.get_shape().as_list()[0]
+  anchors_shape = anchors.get_shape().as_list()
   fea_h = anchors_shape[0]
   fea_w = anchors_shape[1]
-  num_anchors = anchors_shape[2]
+  num_anchors = anchors_shape[2] * fea_h * fea_w
 
-  bboxes_shape = bboxes.get_shape().as_list()[0]
+  bboxes_shape = bboxes.get_shape().as_list()
   num_obj = bboxes_shape[1]
 
   anchor_idx_list = []
@@ -138,32 +138,41 @@ def encode_annos(images, labels, bboxes, anchors, num_classes):
       label = labels[i][j]
       onehot_labels_list.append(tf.one_hot(label, num_classes))  # collect anchor cls
       # anchor
-      ious = batch_iou(anchors, bbox)  # TODO(shizehao): reshape anchors
+      anchors = tf.reshape(anchors, [-1, 4])  # reshape anchors
+      ious = batch_iou(anchors, bbox)
       anchors_idx = tf.arg_max(ious, dimension=0)  # find the target anchor
       anchor_idx_list.append(anchors_idx)  # collect anchor idx
       # delta
-      delta_list.append(compute_delta(bbox, anchors[anchors_idx]))
+      anchor = tf.gather(anchors, anchors_idx)
+      delta_list.append(compute_delta(bbox, anchor))
 
+    indices = tf.reshape(tf.stack(anchor_idx_list, axis=0), shape=[-1, 1])
     # bbox
     batch_bboxes_list.append(
-      tf.expand_dims(
-        tf.scatter_nd(tf.constant(anchor_idx_list), bbox_list),
-        0)
+      tf.scatter_nd(
+        indices,
+        tf.stack(bbox_list, axis=0),
+        shape=[num_anchors, 4]
+      )
     )
     # label
     batch_onehot_labels_list.append(
-      tf.expand_dims(
-        tf.scatter_nd(tf.constant(anchor_idx_list), onehot_labels_list),
-        0)
+      tf.scatter_nd(
+        indices,
+        tf.stack(onehot_labels_list, axis=0),
+        shape=[num_anchors, num_classes]
+      )
     )
     # anchor
     onehot_anchor = tf.one_hot(anchor_idx_list, num_anchors)
     onehot_aid_list.append(tf.reduce_sum(onehot_anchor, axis=0))
     # delta
     batch_delta_list.append(
-      tf.expand_dims(
-        tf.scatter_nd(tf.constant(anchor_idx_list), delta_list),
-        0)
+      tf.scatter_nd(
+        indices,
+        tf.stack(delta_list, axis=0),
+        shape=[num_anchors, 4]
+      )
     )
 
   input_mask = tf.stack(onehot_aid_list, axis=0)

@@ -43,7 +43,26 @@ class MobileNetDetTest(tf.test.TestCase):
       self.assertTrue((np.abs(output - 1 / 7.)<1e-4).all())
 
   def test_encode_annos(self):
-    pass
+    with self.test_session() as sess:
+      batch_size = 10
+      num_obj = 10
+      image_shape = [500,500]
+      fea_shape = [10, 10]
+      num_classes = 21
+      images = tf.constant(0, shape=[batch_size, image_shape[0], image_shape[1], 3])
+      labels = tf.constant(1, shape=[batch_size, num_obj])
+      bboxes = tf.constant(2, shape=[batch_size, num_obj, 4], dtype=tf.float32)
+      anchors = set_anchors(image_shape, fea_shape)
+      input_mask, labels_input, box_delta_input, box_input = \
+        encode_annos(images, labels, bboxes, anchors, num_classes)
+      out_input_mask, out_labels_input, out_box_delta_input, out_box_input = \
+        sess.run([input_mask, labels_input, box_delta_input, box_input])
+      print("shape:",
+            np.shape(out_input_mask),
+            np.shape(out_labels_input),
+            np.shape(out_box_delta_input),
+            np.shape(out_box_input)
+            )
 
   def test_set_anchors(self):
     with self.test_session() as sess:
