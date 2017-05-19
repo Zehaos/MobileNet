@@ -69,6 +69,7 @@ When using RMSprop training strategy, the checkpoint file size should be almost 
 2. Slim multi-gpu performance problems
 
 [#1390](https://github.com/tensorflow/models/issues/1390)
+[#1428](https://github.com/tensorflow/models/issues/1428#issuecomment-302589426)
 
 ## TODO
 - [x] Train on Imagenet
