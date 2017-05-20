@@ -370,7 +370,7 @@ def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_con
       num_objects,
       name='class_loss'
     )
-    tf.add_to_collection('losses', class_loss)
+    tf.losses.add_loss(class_loss)
 
   with tf.variable_scope('confidence_score_regression') as scope:
     input_mask = tf.reshape(input_mask, [config.BATCH_SIZE, config.ANCHORS])
@@ -383,8 +383,7 @@ def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_con
       ),
       name='confidence_loss'
     )
-    tf.add_to_collection('losses', conf_loss)
-    tf.summary.scalar('mean iou', tf.reduce_sum(ious) / num_objects)
+    tf.losses.add_loss(conf_loss)
 
   with tf.variable_scope('bounding_box_regression') as scope:
     bbox_loss = tf.truediv(
@@ -394,7 +393,7 @@ def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_con
       num_objects,
       name='bbox_loss'
     )
-    tf.add_to_collection('losses', bbox_loss)
+    tf.losses.add_loss(bbox_loss)
 
   # add above losses as well as weight decay losses to form the total loss
   loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
