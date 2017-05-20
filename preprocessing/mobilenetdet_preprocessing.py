@@ -128,7 +128,7 @@ def check_3d_image(image, require_static=True):
 
 
 def flip_with_bboxes(image, bboxes):
-  image = tf.convert_to_tensor(image)
+  # image = tf.convert_to_tensor(image)
   check_3d_image(image)
   uniform_random = tf.random_uniform([], 0, 1.0)
   mirror_cond = tf.less(uniform_random, .5)
@@ -189,9 +189,9 @@ def preprocess_for_train(image, height, width, labels, bboxes,
   Returns:
     3-D float Tensor of distorted image used for training with range [-1, 1].
   """
-  with tf.name_scope(scope, 'distort_image', [image, height, width, bbox]):
-    if bbox is None:
-      bbox = tf.constant([0.0, 0.0, 1.0, 1.0],
+  with tf.name_scope(scope, 'distort_image', [image, height, width, bboxes]):
+    if bboxes is None:
+      bboxes = tf.constant([0.0, 0.0, 1.0, 1.0],
                          dtype=tf.float32,
                          shape=[1, 1, 4])
     if image.dtype != tf.float32:
@@ -199,12 +199,11 @@ def preprocess_for_train(image, height, width, labels, bboxes,
     # Each bounding box has shape [1, num_boxes, box coords] and
     # the coordinates are ordered [ymin, xmin, ymax, xmax].
     image_with_box = tf.image.draw_bounding_boxes(tf.expand_dims(image, 0),
-                                                  bbox)
+                                                  bboxes)
     tf.summary.image('image_with_bounding_boxes', image_with_box)
-
     # Randomly flip the image horizontally.
     # flip with bbox
-    image, bboxes = flip_with_bboxes(image, bboxes)
+    # image, bboxes = flip_with_bboxes(image, bboxes)
 
     # Randomly distort the colors. There are 4 ways to do it.
     image = apply_with_random_selector(

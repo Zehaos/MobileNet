@@ -60,7 +60,8 @@ def batch_iou(bboxes, bbox):
   Returns:
     Batch of IOUs
   """
-  num_bboxes = bboxes.get_shape().as_list()[0]
+  print(bboxes.get_shape().as_list())
+  print(bbox.get_shape().as_list())
   lr = tf.maximum(
     tf.minimum(bboxes[:, 3], bbox[3]) -
     tf.maximum(bboxes[:, 1], bbox[1]),
@@ -113,8 +114,7 @@ def encode_annos(images, labels, bboxes, anchors, num_classes):
     box_delta_input: 3-D with shape `[B, num_anchors, 4]`.
     box_input: 3-D with shape '[B, num_anchors, 4]'.
   """
-  images_shape = images.get_shape().as_list()
-  batch_size = images_shape[0]
+  batch_size = config.BATCH_SIZE
 
   anchors_shape = anchors.get_shape().as_list()
   fea_h = anchors_shape[0]

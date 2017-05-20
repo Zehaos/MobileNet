@@ -4,7 +4,11 @@ from easydict import EasyDict as edict
 config = edict()
 
 config.IMG_HEIGHT = 375
-config.IMG_WIDTH = 1274
+config.IMG_WIDTH = 1242
+
+config.FEA_HEIGHT = 12
+config.FEA_WIDTH = 12
+
 config.BATCH_SIZE = 1
 
 config.EPSILON = 1e-8

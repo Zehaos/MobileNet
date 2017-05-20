@@ -453,14 +453,14 @@ def main(_):
 
       # train_image_size = FLAGS.train_image_size or network_fn.default_image_size
 
-      # TODO(shizehao): add detection preprocessing fn, encode annotations
-
       # detection preprocesing
+      # TODO(shizehao): fix bboxes format [0,1)
       image, gt_labels, gt_bboxes = image_preprocessing_fn(image,
                                                      config.IMG_HEIGHT,
                                                      config.IMG_WIDTH,
-                                                     gt_labels,
-                                                     gt_bboxes)
+                                                     labels = gt_labels,
+                                                     bboxes = gt_bboxes,
+                                                     )
 
       # encode annotations for losses computation
       anchors = set_anchors([config.IMG_HEIGHT, config.IMG_WIDTH], [config.FEA_HEIGHT, config.FEA_WIDTH])
@@ -475,8 +475,7 @@ def main(_):
         batch_size=FLAGS.batch_size,
         num_threads=FLAGS.num_preprocessing_threads,
         capacity=5 * FLAGS.batch_size)
-      #labels = slim.one_hot_encoding(
-        #labels, dataset.num_classes - FLAGS.labels_offset)
+
       batch_queue = slim.prefetch_queue.prefetch_queue(
         [image, input_mask, labels_input, box_delta_input, box_input], capacity=2 * deploy_config.num_clones)
 
@@ -485,7 +484,6 @@ def main(_):
     ####################
     def clone_fn(batch_queue):
       """Allows data parallelism by creating multiple clones of network_fn."""
-      # TODO(shizehao): add detection model with loss
       images, input_mask, labels_input, box_delta_input, box_input = batch_queue.dequeue()
 
       logits, end_points = network_fn(images)
@@ -496,23 +494,8 @@ def main(_):
       predict = slim.conv2d(dropout, num_output, kernel_size=(3, 3), stride=1, padding='SAME')
       pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
         interpre_prediction(predict, input_mask, anchors, box_input, config.FEA_HEIGHT, config.FEA_WIDTH)
-      # TODO(shizehao): fetch iou from predict
-      loss = losses(input_mask, labels_input, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
-
-      """
-      #############################
-      # Specify the loss function #
-      #############################
-
-      if 'AuxLogits' in end_points:
-        tf.losses.softmax_cross_entropy(
-          logits=end_points['AuxLogits'], onehot_labels=labels,
-          label_smoothing=FLAGS.label_smoothing, weights=0.4, scope='aux_loss')
-      tf.losses.softmax_cross_entropy(
-        logits=logits, onehot_labels=labels,
-        label_smoothing=FLAGS.label_smoothing, weights=1.0)
-      return end_points"""
-      return image, gt_labels, gt_bboxes  # test fetch data
+      losses(input_mask, labels_input, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
+      return end_points
 
     # Gather initial summaries.
     summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))

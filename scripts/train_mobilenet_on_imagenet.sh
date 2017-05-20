@@ -11,7 +11,7 @@
 TRAIN_DIR=/tmp/mobilenet-model
 
 # Where the dataset is saved to.
-DATASET_DIR=/home/zehao/Dataset/imagenet-data
+DATASET_DIR=/media/zehao/WD/Dataset/processed/ImageNet2012/imagenet-data
 
 # Run training.
 python train_image_classifier.py \
@@ -35,7 +35,7 @@ python train_image_classifier.py \
   --momentum=0.9 \
   --num_epochs_per_decay=30.0 \
   --weight_decay=0.0 \
-  --num_clones=1
+  --num_clones=2
 
 # Run evaluation.
 python eval_image_classifier.py \

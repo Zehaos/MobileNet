@@ -42,6 +42,8 @@ with tf.Graph().as_default() as graph:
                                                          labels=label,
                                                          bboxes=conver_box(bbox, config.IMG_HEIGHT, config.IMG_WIDTH),
                                                          )
+
+
   with tf.Session() as sess:
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
