@@ -25,10 +25,11 @@ from datasets import dataset_factory
 from deployment import model_deploy
 from nets import nets_factory
 from preprocessing import preprocessing_factory
-from nets.mobilenetdet import encode_annos
-from nets.mobilenetdet import losses
+from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction
+from configs.kitti_config import config
 
-slim = tf.contrib.slim
+import tensorflow.contrib.slim as slim
+# slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string(
   'master', '', 'The address of the TensorFlow master to use.')
@@ -450,26 +451,34 @@ def main(_):
                                                                'object/label',
                                                                'object/bbox'])
 
-      train_image_size = FLAGS.train_image_size or network_fn.default_image_size
+      # train_image_size = FLAGS.train_image_size or network_fn.default_image_size
 
       # TODO(shizehao): add detection preprocessing fn, encode annotations
 
       # detection preprocesing
-      # image, labels, bboxes = image_preprocessing_fn(image, train_image_size, train_image_size)
+      image, gt_labels, gt_bboxes = image_preprocessing_fn(image,
+                                                     config.IMG_HEIGHT,
+                                                     config.IMG_WIDTH,
+                                                     gt_labels,
+                                                     gt_bboxes)
 
       # encode annotations for losses computation
-      # input_mask, labels, ious, box_delta_input = encode_annos(image, labels, bboxes)
+      anchors = set_anchors([config.IMG_HEIGHT, config.IMG_WIDTH], [config.FEA_HEIGHT, config.FEA_WIDTH])
+      input_mask, labels_input, box_delta_input, box_input = encode_annos(image,
+                                                               gt_labels,
+                                                               gt_bboxes,
+                                                               anchors,
+                                                               config.NUM_CLASSES)
 
-      # expand_dims
-      image, gt_labels, gt_bboxes = tf.train.batch(
-        [image, gt_labels, gt_bboxes],
+      image, input_mask, labels_input, box_delta_input, box_input = tf.train.batch(
+        [image, input_mask, labels_input, box_delta_input, box_input],
         batch_size=FLAGS.batch_size,
         num_threads=FLAGS.num_preprocessing_threads,
         capacity=5 * FLAGS.batch_size)
       #labels = slim.one_hot_encoding(
         #labels, dataset.num_classes - FLAGS.labels_offset)
       batch_queue = slim.prefetch_queue.prefetch_queue(
-        [image, gt_labels, gt_bboxes], capacity=2 * deploy_config.num_clones)
+        [image, input_mask, labels_input, box_delta_input, box_input], capacity=2 * deploy_config.num_clones)
 
     ####################
     # Define the model #
@@ -477,10 +486,20 @@ def main(_):
     def clone_fn(batch_queue):
       """Allows data parallelism by creating multiple clones of network_fn."""
       # TODO(shizehao): add detection model with loss
-      image, gt_labels, gt_bboxes = batch_queue.dequeue()
-      """
-      logits, end_points = network_fn(images)
+      images, input_mask, labels_input, box_delta_input, box_input = batch_queue.dequeue()
 
+      logits, end_points = network_fn(images)
+      conv_ds_14 = end_points['MobileNet/conv_ds_14/depthwise_conv']
+      dropout = slim.dropout(conv_ds_14, keep_prob=0.5, is_training=True)
+
+      num_output = config.NUM_ANCHORS*(config.NUM_CALSSES+1+4)
+      predict = slim.conv2d(dropout, num_output, kernel_size=(3, 3), stride=1, padding='SAME')
+      pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
+        interpre_prediction(predict, input_mask, anchors, box_input, config.FEA_HEIGHT, config.FEA_WIDTH)
+      # TODO(shizehao): fetch iou from predict
+      loss = losses(input_mask, labels_input, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
+
+      """
       #############################
       # Specify the loss function #
       #############################
