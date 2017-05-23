@@ -80,8 +80,6 @@ def batch_iou(bboxes, bbox):
   Returns:
     Batch of IOUs
   """
-  print(bboxes.get_shape().as_list())
-  print(bbox.get_shape().as_list())
   lr = tf.maximum(
     tf.minimum(bboxes[:, 3], bbox[3]) -
     tf.maximum(bboxes[:, 1], bbox[1]),
@@ -102,6 +100,29 @@ def batch_iou(bboxes, bbox):
   return iou
 
 
+def batch_iou_(anchors, bboxes):
+  """ Compute iou of two batch of boxes. Box format '[y_min, x_min, y_max, x_max]'.
+  Args:
+    anchors: know shape
+    bboxes: dynamic shape
+  Return:
+    ious: 2-D with shape '[num_bboxes, num_anchors]'
+    indices: [num_bboxes, 1]
+  """
+  num_anchors = anchors.get_shape().as_list()[0]
+  ious_list = []
+  for i in range(num_anchors):
+    anchor = anchors[i]
+    _ious = batch_iou(bboxes, anchor)
+    ious_list.append(_ious)
+  ious = tf.stack(ious_list, axis=0)
+  ious = tf.transpose(ious)
+
+  indices = tf.arg_max(ious, dimension=1)
+
+  return ious, indices
+
+
 def compute_delta(gt_box, anchor):
   """Compute delta, anchor+delta = gt_box. Box format '[cx, cy, w, h]'.
   Args:
@@ -118,14 +139,31 @@ def compute_delta(gt_box, anchor):
   return tf.stack([delta_x, delta_y, delta_w, delta_h], axis=0)
 
 
+def batch_delta(bboxes, anchors):
+  """
+  Args:
+     bboxes: [num_bboxes, 4]
+     anchors: [num_bboxes, 4]
+  Return:
+    deltas: [num_bboxes, 4]
+  """
+  bbox_x, bbox_y, bbox_w, bbox_h = tf.unstack(bboxes, axis=1)
+  anchor_x,anchor_y,anchor_w,anchor_h = tf.unstack(anchors, axis=1)
+  delta_x = (bbox_x - anchor_x) / bbox_w
+  delta_y = (bbox_y - anchor_y) / bbox_h
+  delta_w = tf.log(bbox_w / anchor_w)
+  delta_h = tf.log(bbox_h / anchor_h)
+  return tf.stack([delta_x, delta_y, delta_w, delta_h], axis=1)
+
+
 # TODO(shizehao): turn to matrix manipulation
-def encode_annos(images, labels, bboxes, anchors, num_classes):
+def encode_annos(images, b_labels, b_bboxes, anchors, num_classes):
   """Encode annotations for losses computations.
 
   Args:
     images: 4-D with shape `[B, H, W, C]`.
-    labels: 2-D with shape `[B, num_bounding_boxes]`.
-    bboxes: 3-D with shape `[B, num_bounding_boxes, 4]`. Scaled.
+    b_labels: 2-D with shape `[B, num_bounding_boxes]`.
+    b_bboxes: 3-D with shape `[B, num_bounding_boxes, 4]`. Scaled.
     anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
 
   Returns:
@@ -141,36 +179,44 @@ def encode_annos(images, labels, bboxes, anchors, num_classes):
   fea_w = anchors_shape[1]
   num_anchors = anchors_shape[2] * fea_h * fea_w
   anchors = tf.reshape(anchors, [num_anchors, 4])  # reshape anchors
-  print("reshape anchors: shape=", anchors.get_shape().as_list())
 
-  bboxes_shape = bboxes.get_shape().as_list()
-  num_obj = bboxes_shape[1]
+  # bboxes_shape = bboxes.get_shape().as_list()
+  # num_obj = bboxes_shape[1]
 
   batch_onehot_aid_list = []
   batch_onehot_labels_list = []
   batch_bboxes_list = []
   batch_delta_list = []
   for i in range(batch_size):  # for each image
-    anchor_idx_list = []
-    delta_list = []
-    for j in range(num_obj):  # for each bbox
-      # bbox
-      bbox = bboxes[i][j]
-      # anchor
-      _anchors = xywh_to_yxyx(anchors)
-      ious = batch_iou(_anchors, bbox)
-      anchors_idx = tf.arg_max(ious, dimension=0)  # find the target anchor
-      anchor_idx_list.append(anchors_idx)  # collect anchor idx
-      # delta
-      anchor = tf.gather(anchors, anchors_idx)
-      delta_list.append(compute_delta(yxyx_to_xywh(bbox), anchor))
+    # anchor_idx_list = []
+    # delta_list = []
 
-    indices = tf.reshape(tf.stack(anchor_idx_list, axis=0), shape=[-1, 1])
+    # Cal iou, find the target anchor
+    _anchors = xywh_to_yxyx(anchors)
+    ious, indices = batch_iou_(_anchors, b_bboxes[i])
+    indices = tf.reshape(indices, shape=[-1, 1])
+
+    target_anchors = tf.gather(anchors, indices)
+    target_anchors = tf.squeeze(target_anchors, axis=1)
+    delta = batch_delta(yxyx_to_xywh(b_bboxes[i]), target_anchors)
+    # for j in range(num_obj):  # for each bbox
+    #   # bbox
+    #   bbox = bboxes[i][j]
+    #   # anchor
+    #   _anchors = xywh_to_yxyx(anchors)
+    #   ious = batch_iou(_anchors, bbox)
+    #   anchors_idx = tf.arg_max(ious, dimension=0)  # find the target anchor
+    #   anchor_idx_list.append(anchors_idx)  # collect anchor idx
+    #   # delta
+    #   anchor = tf.gather(anchors, anchors_idx)
+    #   delta_list.append(compute_delta(yxyx_to_xywh(bbox), anchor))
+    # indices = tf.reshape(tf.stack(anchor_idx_list, axis=0), shape=[-1, 1])
+
     # bbox
     batch_bboxes_list.append(
       tf.scatter_nd(
         indices,
-        bboxes[i],
+        b_bboxes[i],
         shape=[num_anchors, 4]
       )
     )
@@ -178,18 +224,19 @@ def encode_annos(images, labels, bboxes, anchors, num_classes):
     batch_onehot_labels_list.append(
       tf.scatter_nd(
         indices,
-        tf.one_hot(labels[i], num_classes),
+        tf.one_hot(b_labels[i], num_classes),
         shape=[num_anchors, num_classes]
       )
     )
     # anchor
-    onehot_anchor = tf.one_hot(anchor_idx_list, num_anchors)
+    onehot_anchor = tf.one_hot(indices, num_anchors)
     batch_onehot_aid_list.append(tf.reduce_sum(onehot_anchor, axis=0))
     # delta
     batch_delta_list.append(
       tf.scatter_nd(
         indices,
-        tf.stack(delta_list, axis=0),
+        # tf.stack(delta_list, axis=0),
+        delta,
         shape=[num_anchors, 4]
       )
     )

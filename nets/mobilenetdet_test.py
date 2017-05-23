@@ -54,21 +54,51 @@ class MobileNetDetTest(tf.test.TestCase):
 
   def test_batch_iou(self):
     with self.test_session() as sess:
-      bboxes = tf.stack(
-        [tf.constant([0.1, 0.1, 0.2, 0.2], dtype=tf.float32)] * 3
-      )
-      bbox = tf.constant([0.15, 0.15, 0.25, 0.25], dtype=tf.float32)
-      iou = batch_iou(bboxes, bbox)
-      output = sess.run(iou)
-      self.assertTrue((np.abs(output - 1 / 7.) < 1e-4).all())
+      anchors = set_anchors(img_shape=[config.IMG_HEIGHT, config.IMG_WIDTH],
+                            fea_shape=[config.FEA_HEIGHT, config.FEA_WIDTH])
+      anchors_shape = anchors.get_shape().as_list()
+      fea_h = anchors_shape[0]
+      fea_w = anchors_shape[1]
+      num_anchors = anchors_shape[2] * fea_h * fea_w
+      anchors = tf.reshape(anchors, [num_anchors, 4])  # reshape anchors
+      anchors = xywh_to_yxyx(anchors)
+      bbox = tf.constant([ 0.75, 0.75, 0.2,  0.2 ], dtype=tf.float32)
+      bbox = xywh_to_yxyx(bbox)
+      iou = batch_iou(anchors, bbox)
+      anchor_idx = tf.arg_max(iou, dimension=0)
+      anchors, output, anchor_idx = sess.run([anchors, iou, anchor_idx])
+      print(anchors)
+      print(output)
+      print(anchor_idx)
+
+  def test_batch_iou_(self):
+    anchors = set_anchors(img_shape=[config.IMG_HEIGHT, config.IMG_WIDTH],
+                          fea_shape=[config.FEA_HEIGHT, config.FEA_WIDTH])
+    anchors_shape = anchors.get_shape().as_list()
+    fea_h = anchors_shape[0]
+    fea_w = anchors_shape[1]
+    num_anchors = anchors_shape[2] * fea_h * fea_w
+    anchors = tf.reshape(anchors, [num_anchors, 4])  # reshape anchors
+    anchors = xywh_to_yxyx(anchors)
+    bboxes = tf.placeholder(dtype=tf.float32, shape=[None, 4])
+    bboxes_ = xywh_to_yxyx(bboxes)
+    ious, indices = batch_iou_(anchors, bboxes_)
+    with self.test_session() as sess:
+      ious, indices, bboxes_ = sess.run([ious, indices, bboxes], feed_dict={bboxes: [[0.25, 0.25, 0.5, 0.5 ],
+                                                                    [0.75, 0.75, 0.2, 0.2]]}
+                               )
+      print(ious)
+      print(indices)
+      print(bboxes_)
 
   def test_encode_annos(self):
     with self.test_session() as sess:
-      batch_size = 2
-      num_obj = 1
-      image_shape = [90, 90]
-      fea_shape = [3, 3]
+      batch_size = config.BATCH_SIZE
+      num_obj = 2
+      image_shape = [config.IMG_HEIGHT, config.IMG_WIDTH]
+      fea_shape = [config.FEA_HEIGHT, config.FEA_WIDTH]
       num_classes = config.NUM_CLASSES
+
       images = tf.constant(0, shape=[batch_size, image_shape[0], image_shape[1], 3])
       labels = tf.constant(1, shape=[batch_size, num_obj])
       anchors = set_anchors(image_shape, fea_shape)
@@ -76,8 +106,9 @@ class MobileNetDetTest(tf.test.TestCase):
       # Construct test bbox
       bbox_1 = tf.convert_to_tensor(xywh_to_yxyx(anchors[0][0][0]), dtype=tf.float32)
       bbox_2 = tf.convert_to_tensor(xywh_to_yxyx(anchors[2][2][1]), dtype=tf.float32)
-      bboxes = tf.stack([tf.expand_dims(bbox_1, axis=0), tf.expand_dims(bbox_2, axis=0)])
-
+      bboxes = tf.stack(
+        [tf.stack([bbox_1, bbox_2], axis=0)]*batch_size
+      )
       input_mask, labels_input, box_delta_input, box_input, anchors = \
         encode_annos(images, labels, bboxes, anchors, num_classes)
       out_input_mask, out_labels_input, out_box_delta_input, out_box_input, out_anchors = \
@@ -96,9 +127,8 @@ class MobileNetDetTest(tf.test.TestCase):
 
   def test_set_anchors(self):
     with self.test_session() as sess:
-      image_shape = [90, 90]
-      fea_shape = [3, 3]
-      anchors = set_anchors(image_shape, fea_shape)
+      anchors = set_anchors(img_shape=[config.IMG_HEIGHT, config.IMG_WIDTH],
+                            fea_shape=[config.FEA_HEIGHT, config.FEA_WIDTH])
       output = sess.run(anchors)
-      self.assertAllEqual(np.shape(output), [fea_shape[0], fea_shape[1], config.NUM_ANCHORS, 4])
+      self.assertAllEqual(np.shape(output), [config.FEA_HEIGHT, config.FEA_WIDTH, config.NUM_ANCHORS, 4])
       print("Anchors:", output)
