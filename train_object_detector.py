@@ -25,7 +25,7 @@ from datasets import dataset_factory
 from deployment import model_deploy
 from nets import nets_factory
 from preprocessing import preprocessing_factory
-from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction
+from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction, scale_bboxes
 from configs.kitti_config import config
 
 import tensorflow.contrib.slim as slim
@@ -454,13 +454,15 @@ def main(_):
       # train_image_size = FLAGS.train_image_size or network_fn.default_image_size
 
       # detection preprocesing
-      # TODO(shizehao): fix bboxes format [0,1)
+      gt_bboxes = scale_bboxes(gt_bboxes, img_shape) # bboxes format [0,1)
+      gt_bboxes = tf.expand_dims(gt_bboxes, axis=0)
       image, gt_labels, gt_bboxes = image_preprocessing_fn(image,
                                                      config.IMG_HEIGHT,
                                                      config.IMG_WIDTH,
                                                      labels = gt_labels,
                                                      bboxes = gt_bboxes,
                                                      )
+      gt_bboxes = tf.reshape(gt_bboxes, tf.shape(gt_bboxes)[1:])
 
       # encode annotations for losses computation
       anchors = set_anchors([config.IMG_HEIGHT, config.IMG_WIDTH], [config.FEA_HEIGHT, config.FEA_WIDTH])

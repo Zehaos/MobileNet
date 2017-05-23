@@ -28,6 +28,26 @@ def yxyx_to_xywh(bbox):
   return tf.stack([x, y, w, h], axis=_axis)
 
 
+def scale_bboxes(bbox, img_shape):
+  """Scale bboxes to [0, 1). bbox format [ymin, xmin, ymax, xmax]
+  Args:
+    bbox: 2-D with shape '[num_bbox, 4]'
+    img_shape: 1-D with shape '[4]'
+  Return:
+    sclaed_bboxes: scaled bboxes
+  """
+  img_h = tf.cast(img_shape[0], dtype=tf.float32)
+  img_w = tf.cast(img_shape[1], dtype=tf.float32)
+  shape = bbox.get_shape().as_list()
+  _axis = 1 if len(shape) > 1 else 0
+  [y_min, x_min, y_max, x_max] = tf.unstack(bbox, axis=_axis)
+  y_1 = tf.truediv(y_min, img_h)
+  x_1 = tf.truediv(x_min, img_w)
+  y_2 = tf.truediv(y_max, img_h)
+  x_2 = tf.truediv(x_max, img_w)
+  return tf.stack([y_1, x_1, y_2, x_2], axis=_axis)
+
+
 def iou(bbox_1, bbox_2):
   """Compute iou of a box with another box. Box format '[y_min, x_min, y_max, x_max]'.
   Args:
@@ -105,7 +125,7 @@ def encode_annos(images, labels, bboxes, anchors, num_classes):
   Args:
     images: 4-D with shape `[B, H, W, C]`.
     labels: 2-D with shape `[B, num_bounding_boxes]`.
-    bboxes: 3-D with shape `[B, num_bounding_boxes, 4]`.
+    bboxes: 3-D with shape `[B, num_bounding_boxes, 4]`. Scaled.
     anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
 
   Returns:
@@ -194,8 +214,8 @@ def set_anchors(img_shape, fea_shape):
     anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
 
   """
-  img_h = img_shape[0]
-  img_w = img_shape[1]
+  img_h = tf.cast(img_shape[0], tf.float32)
+  img_w = tf.cast(img_shape[1], tf.float32)
   H = fea_shape[0]
   W = fea_shape[1]
   B = config.NUM_ANCHORS
@@ -210,7 +230,7 @@ def set_anchors(img_shape, fea_shape):
   )
 
   center_x = tf.truediv(
-    tf.range(1, W + 1, 1, dtype=tf.float32) * img_w,
+    tf.range(1, W + 1, 1, dtype=tf.float32),# * img_w,
     float(W + 1)
   )
   center_x = tf.concat(
@@ -221,7 +241,7 @@ def set_anchors(img_shape, fea_shape):
   center_x = tf.reshape(center_x, [H, W, B, 1])
 
   center_y = tf.truediv(
-    tf.range(1, H + 1, 1, dtype=tf.float32) * img_h,
+    tf.range(1, H + 1, 1, dtype=tf.float32),# * img_h,
     float(H + 1)
   )
   center_y = tf.concat(

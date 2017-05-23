@@ -28,29 +28,36 @@ class MobileNetDetTest(tf.test.TestCase):
       output = sess.run(bbox_xywh)
       self.assertAllEqual(output, [3, 2, 2, 2])
 
+  def test_scale_bbox(self):
+    with self.test_session() as sess:
+      bbox = tf.constant([[1, 2, 3, 4], [1, 2, 3, 4]], dtype=tf.float32)
+      scaled_bbox = scale_bboxes(bbox, [10., 10.])
+      output = sess.run(scaled_bbox)
+      print(output)
+
   def test_iou(self):
     with self.test_session() as sess:
-      bbox_1 = tf.constant([1, 1, 2, 2], dtype=tf.float32)
-      bbox_2 = tf.constant([1.5, 1.5, 2.5, 2.5], dtype=tf.float32)
+      bbox_1 = tf.constant([0.1, 0.1, 0.2, 0.2], dtype=tf.float32)
+      bbox_2 = tf.constant([0.15, 0.15, 0.25, 0.25], dtype=tf.float32)
       iou_ = iou(bbox_1, bbox_2)
       output = sess.run(iou_)
       self.assertLess(np.abs(output - 1 / 7.), 1e-4)
 
   def test_compute_delta(self):
     with self.test_session() as sess:
-      image_shape = [90, 90]
+      image_shape = [config.IMG_HEIGHT, config.IMG_WIDTH]
       fea_shape = [3, 3]
       anchors = set_anchors(image_shape, fea_shape)
-      gt_box = tf.convert_to_tensor([22.5, 22.5, 10., 10.])
-      delta = compute_delta(gt_box, anchors[0][0][1])
+      gt_box = tf.convert_to_tensor([0.25, 0.25, 0.0805153, 0.26666668])
+      delta = compute_delta(gt_box, anchors[0][0][0])
       print(sess.run(delta))
 
   def test_batch_iou(self):
     with self.test_session() as sess:
       bboxes = tf.stack(
-        [tf.constant([1, 1, 2, 2], dtype=tf.float32)] * 3
+        [tf.constant([0.1, 0.1, 0.2, 0.2], dtype=tf.float32)] * 3
       )
-      bbox = tf.constant([1.5, 1.5, 2.5, 2.5], dtype=tf.float32)
+      bbox = tf.constant([0.15, 0.15, 0.25, 0.25], dtype=tf.float32)
       iou = batch_iou(bboxes, bbox)
       output = sess.run(iou)
       self.assertTrue((np.abs(output - 1 / 7.) < 1e-4).all())
