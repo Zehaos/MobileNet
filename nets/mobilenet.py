@@ -77,7 +77,7 @@ def mobilenet(inputs,
 
         net = _depthwise_separable_conv(net, 1024, width_multiplier, downsample=True, sc='conv_ds_13')
         net = _depthwise_separable_conv(net, 1024, width_multiplier, sc='conv_ds_14')
-        net = slim.avg_pool2d(net, [4, 4], scope='avg_pool_15')
+        net = slim.avg_pool2d(net, [7, 7], scope='avg_pool_15')
 
     end_points = slim.utils.convert_collection_to_dict(end_points_collection)
     net = tf.squeeze(net, [1, 2], name='SpatialSqueeze')
