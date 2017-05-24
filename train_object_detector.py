@@ -29,6 +29,7 @@ from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_predic
 from configs.kitti_config import config
 
 import tensorflow.contrib.slim as slim
+
 # slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string(
@@ -454,29 +455,36 @@ def main(_):
       # train_image_size = FLAGS.train_image_size or network_fn.default_image_size
 
       # detection preprocesing
-      gt_bboxes = scale_bboxes(gt_bboxes, img_shape) # bboxes format [0,1)
+      gt_bboxes = scale_bboxes(gt_bboxes, img_shape)  # bboxes format [0,1)
       gt_bboxes = tf.expand_dims(gt_bboxes, axis=0)
       image, gt_labels, gt_bboxes = image_preprocessing_fn(image,
-                                                     config.IMG_HEIGHT,
-                                                     config.IMG_WIDTH,
-                                                     labels = gt_labels,
-                                                     bboxes = gt_bboxes,
-                                                     )
+                                                           config.IMG_HEIGHT,
+                                                           config.IMG_WIDTH,
+                                                           labels=gt_labels,
+                                                           bboxes=gt_bboxes,
+                                                           )
       gt_bboxes = tf.reshape(gt_bboxes, tf.shape(gt_bboxes)[1:])
 
       # encode annotations for losses computation
       anchors = set_anchors([config.IMG_HEIGHT, config.IMG_WIDTH], [config.FEA_HEIGHT, config.FEA_WIDTH])
-      input_mask, labels_input, box_delta_input, box_input = encode_annos(image,
-                                                               gt_labels,
-                                                               gt_bboxes,
-                                                               anchors,
-                                                               config.NUM_CLASSES)
 
-      image, input_mask, labels_input, box_delta_input, box_input = tf.train.batch(
+      print("images shape:", image.get_shape().as_list())
+      print("gt_labels shape:", gt_labels.get_shape().as_list())
+      print("gt_bboxes shape:", gt_bboxes.get_shape().as_list())
+      print("anchors shape:", anchors.get_shape().as_list())
+
+      # TODO(shizehao): do encode annos in a image not batch
+      input_mask, labels_input, box_delta_input, box_input = encode_annos(image,
+                                                                          gt_labels,
+                                                                          gt_bboxes,
+                                                                          anchors,
+                                                                          config.NUM_CLASSES)
+
+      images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = tf.train.batch(
         [image, input_mask, labels_input, box_delta_input, box_input],
-        batch_size=FLAGS.batch_size,
+        batch_size=config.BATCH_SIZE,  # FLAGS.batch_size,
         num_threads=FLAGS.num_preprocessing_threads,
-        capacity=5 * FLAGS.batch_size)
+        capacity=5 * config.BATCH_SIZE)  # FLAGS.batch_size)
 
       batch_queue = slim.prefetch_queue.prefetch_queue(
         [image, input_mask, labels_input, box_delta_input, box_input], capacity=2 * deploy_config.num_clones)
@@ -492,7 +500,7 @@ def main(_):
       conv_ds_14 = end_points['MobileNet/conv_ds_14/depthwise_conv']
       dropout = slim.dropout(conv_ds_14, keep_prob=0.5, is_training=True)
 
-      num_output = config.NUM_ANCHORS*(config.NUM_CALSSES+1+4)
+      num_output = config.NUM_ANCHORS * (config.NUM_CALSSES + 1 + 4)
       predict = slim.conv2d(dropout, num_output, kernel_size=(3, 3), stride=1, padding='SAME')
       pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
         interpre_prediction(predict, input_mask, anchors, box_input, config.FEA_HEIGHT, config.FEA_WIDTH)

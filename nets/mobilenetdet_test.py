@@ -93,27 +93,23 @@ class MobileNetDetTest(tf.test.TestCase):
 
   def test_encode_annos(self):
     with self.test_session() as sess:
-      batch_size = config.BATCH_SIZE
       num_obj = 2
       image_shape = [config.IMG_HEIGHT, config.IMG_WIDTH]
       fea_shape = [config.FEA_HEIGHT, config.FEA_WIDTH]
       num_classes = config.NUM_CLASSES
 
-      images = tf.constant(0, shape=[batch_size, image_shape[0], image_shape[1], 3])
-      labels = tf.constant(1, shape=[batch_size, num_obj])
+      images = tf.constant(0, shape=[image_shape[0], image_shape[1], 3])
+      labels = tf.constant(1, shape=[num_obj])
       anchors = set_anchors(image_shape, fea_shape)
 
       # Construct test bbox
       bbox_1 = tf.convert_to_tensor(xywh_to_yxyx(anchors[0][0][0]), dtype=tf.float32)
       bbox_2 = tf.convert_to_tensor(xywh_to_yxyx(anchors[2][2][1]), dtype=tf.float32)
-      bboxes = tf.stack(
-        [tf.stack([bbox_1, bbox_2], axis=0)]*batch_size
-      )
-      input_mask, labels_input, box_delta_input, box_input, anchors = \
+      bboxes = tf.stack([bbox_1, bbox_2], axis=0)
+      input_mask, labels_input, box_delta_input, box_input = \
         encode_annos(images, labels, bboxes, anchors, num_classes)
-      out_input_mask, out_labels_input, out_box_delta_input, out_box_input, out_anchors = \
-        sess.run([input_mask, labels_input, box_delta_input, box_input, anchors])
-      print("reshape anchors", out_anchors)
+      out_input_mask, out_labels_input, out_box_delta_input, out_box_input = \
+        sess.run([input_mask, labels_input, box_delta_input, box_input])
       print("input_mask:", out_input_mask)
       print("box_input:", out_box_input)
       print("label_input:", out_labels_input)

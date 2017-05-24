@@ -28,6 +28,18 @@ def yxyx_to_xywh(bbox):
   return tf.stack([x, y, w, h], axis=_axis)
 
 
+def yxyx_to_xywh_(bbox):
+  y_min = bbox[:, 0]
+  x_min = bbox[:, 1]
+  y_max = bbox[:, 2]
+  x_max = bbox[:, 3]
+  x = (x_min + x_max) * 0.5
+  y = (y_min + y_max) * 0.5
+  w = x_max - x_min
+  h = y_max - y_min
+  return tf.stack([x, y, w, h], axis=1)
+
+
 def scale_bboxes(bbox, img_shape):
   """Scale bboxes to [0, 1). bbox format [ymin, xmin, ymax, xmax]
   Args:
@@ -148,7 +160,7 @@ def batch_delta(bboxes, anchors):
     deltas: [num_bboxes, 4]
   """
   bbox_x, bbox_y, bbox_w, bbox_h = tf.unstack(bboxes, axis=1)
-  anchor_x,anchor_y,anchor_w,anchor_h = tf.unstack(anchors, axis=1)
+  anchor_x, anchor_y, anchor_w, anchor_h = tf.unstack(anchors, axis=1)
   delta_x = (bbox_x - anchor_x) / bbox_w
   delta_y = (bbox_y - anchor_y) / bbox_h
   delta_w = tf.log(bbox_w / anchor_w)
@@ -157,96 +169,60 @@ def batch_delta(bboxes, anchors):
 
 
 # TODO(shizehao): turn to matrix manipulation
-def encode_annos(images, b_labels, b_bboxes, anchors, num_classes):
+def encode_annos(image, labels, bboxes, anchors, num_classes):
   """Encode annotations for losses computations.
+  All the output tensors have a fix shape(none dynamic dimention).
 
   Args:
-    images: 4-D with shape `[B, H, W, C]`.
-    b_labels: 2-D with shape `[B, num_bounding_boxes]`.
-    b_bboxes: 3-D with shape `[B, num_bounding_boxes, 4]`. Scaled.
+    image: 4-D with shape `[H, W, C]`.
+    b_labels: 2-D with shape `[num_bounding_boxes]`.
+    b_bboxes: 3-D with shape `[num_bounding_boxes, 4]`. Scaled.
     anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
 
   Returns:
-    input_mask: 2-D with shape `[B, num_anchors]`, indicate which anchor to be used to cal loss.
-    labels_input: 3-D with shape `[B, num_anchors, num_classes]`, one hot encode for every anchor.
-    box_delta_input: 3-D with shape `[B, num_anchors, 4]`.
-    box_input: 3-D with shape '[B, num_anchors, 4]'.
+    input_mask: 2-D with shape `[num_anchors]`, indicate which anchor to be used to cal loss.
+    labels_input: 3-D with shape `[num_anchors, num_classes]`, one hot encode for every anchor.
+    box_delta_input: 3-D with shape `[num_anchors, 4]`.
+    box_input: 3-D with shape '[num_anchors, 4]'.
   """
-  batch_size = config.BATCH_SIZE
-
   anchors_shape = anchors.get_shape().as_list()
   fea_h = anchors_shape[0]
   fea_w = anchors_shape[1]
   num_anchors = anchors_shape[2] * fea_h * fea_w
   anchors = tf.reshape(anchors, [num_anchors, 4])  # reshape anchors
 
-  # bboxes_shape = bboxes.get_shape().as_list()
-  # num_obj = bboxes_shape[1]
+  # Cal iou, find the target anchor
+  _anchors = xywh_to_yxyx(anchors)
+  ious, indices = batch_iou_(_anchors, bboxes)
+  indices = tf.reshape(indices, shape=[-1, 1])
 
-  batch_onehot_aid_list = []
-  batch_onehot_labels_list = []
-  batch_bboxes_list = []
-  batch_delta_list = []
-  for i in range(batch_size):  # for each image
-    # anchor_idx_list = []
-    # delta_list = []
+  target_anchors = tf.gather(anchors, indices)
+  target_anchors = tf.squeeze(target_anchors, axis=1)
+  delta = batch_delta(yxyx_to_xywh_(bboxes), target_anchors)
 
-    # Cal iou, find the target anchor
-    _anchors = xywh_to_yxyx(anchors)
-    ious, indices = batch_iou_(_anchors, b_bboxes[i])
-    indices = tf.reshape(indices, shape=[-1, 1])
+  # bbox
+  box_input = tf.scatter_nd(
+    indices,
+    bboxes,
+    shape=[num_anchors, 4]
+  )
+  # label
+  labels_input = tf.scatter_nd(
+    indices,
+    tf.one_hot(labels, num_classes),
+    shape=[num_anchors, num_classes]
+  )
+  # anchor mask
+  onehot_anchor = tf.one_hot(indices, num_anchors)
+  input_mask = tf.reduce_sum(onehot_anchor, axis=0)
+  # delta
+  box_delta_input = tf.scatter_nd(
+    indices,
+    delta,
+    shape=[num_anchors, 4]
+  )
 
-    target_anchors = tf.gather(anchors, indices)
-    target_anchors = tf.squeeze(target_anchors, axis=1)
-    delta = batch_delta(yxyx_to_xywh(b_bboxes[i]), target_anchors)
-    # for j in range(num_obj):  # for each bbox
-    #   # bbox
-    #   bbox = bboxes[i][j]
-    #   # anchor
-    #   _anchors = xywh_to_yxyx(anchors)
-    #   ious = batch_iou(_anchors, bbox)
-    #   anchors_idx = tf.arg_max(ious, dimension=0)  # find the target anchor
-    #   anchor_idx_list.append(anchors_idx)  # collect anchor idx
-    #   # delta
-    #   anchor = tf.gather(anchors, anchors_idx)
-    #   delta_list.append(compute_delta(yxyx_to_xywh(bbox), anchor))
-    # indices = tf.reshape(tf.stack(anchor_idx_list, axis=0), shape=[-1, 1])
-
-    # bbox
-    batch_bboxes_list.append(
-      tf.scatter_nd(
-        indices,
-        b_bboxes[i],
-        shape=[num_anchors, 4]
-      )
-    )
-    # label
-    batch_onehot_labels_list.append(
-      tf.scatter_nd(
-        indices,
-        tf.one_hot(b_labels[i], num_classes),
-        shape=[num_anchors, num_classes]
-      )
-    )
-    # anchor
-    onehot_anchor = tf.one_hot(indices, num_anchors)
-    batch_onehot_aid_list.append(tf.reduce_sum(onehot_anchor, axis=0))
-    # delta
-    batch_delta_list.append(
-      tf.scatter_nd(
-        indices,
-        # tf.stack(delta_list, axis=0),
-        delta,
-        shape=[num_anchors, 4]
-      )
-    )
-
-  input_mask = tf.stack(batch_onehot_aid_list, axis=0)
-  labels_input = tf.stack(batch_onehot_labels_list, axis=0)
-  box_input = tf.stack(batch_bboxes_list, axis=0)
-  box_delta_input = tf.stack(batch_delta_list, axis=0)
-
-  return input_mask, labels_input, box_delta_input, box_input, anchors
+  return input_mask, labels_input, box_delta_input, box_input
 
 
 # TODO(shizehao): align anchor center to the grid
@@ -277,7 +253,7 @@ def set_anchors(img_shape, fea_shape):
   )
 
   center_x = tf.truediv(
-    tf.range(1, W + 1, 1, dtype=tf.float32),# * img_w,
+    tf.range(1, W + 1, 1, dtype=tf.float32),  # * img_w,
     float(W + 1)
   )
   center_x = tf.concat(
@@ -288,7 +264,7 @@ def set_anchors(img_shape, fea_shape):
   center_x = tf.reshape(center_x, [H, W, B, 1])
 
   center_y = tf.truediv(
-    tf.range(1, H + 1, 1, dtype=tf.float32),# * img_h,
+    tf.range(1, H + 1, 1, dtype=tf.float32),  # * img_h,
     float(H + 1)
   )
   center_y = tf.concat(
@@ -304,7 +280,6 @@ def set_anchors(img_shape, fea_shape):
 
 
 def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w):
-
   # probability
   num_class_probs = config.NUM_ANCHORS * config.NUM_CLASSES
   pred_class_probs = tf.reshape(
@@ -407,9 +382,9 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
 
         # TODO(shizehao): need test
         ious = _tensor_iou(
-            bbox_transform(tf.unstack(det_boxes, axis=2)),
-            bbox_transform(tf.unstack(box_input, axis=2))
-          )
+          bbox_transform(tf.unstack(det_boxes, axis=2)),
+          bbox_transform(tf.unstack(box_input, axis=2))
+        )
 
       with tf.variable_scope('probability') as scope:
         probs = tf.multiply(
@@ -474,10 +449,10 @@ def safe_exp(w, thresh):
   with tf.variable_scope('safe_exponential'):
     lin_region = tf.to_float(w > thresh)
 
-    lin_out = slope*(w - thresh + 1.)
+    lin_out = slope * (w - thresh + 1.)
     exp_out = tf.exp(w)
 
-    out = lin_region*lin_out + (1.-lin_region)*exp_out
+    out = lin_region * lin_out + (1. - lin_region) * exp_out
   return out
 
 
@@ -487,16 +462,17 @@ def bbox_transform_inv(bbox):
   """
   with tf.variable_scope('bbox_transform_inv') as scope:
     xmin, ymin, xmax, ymax = bbox
-    out_box = [[]]*4
+    out_box = [[]] * 4
 
-    width       = xmax - xmin + 1.0
-    height      = ymax - ymin + 1.0
-    out_box[0]  = xmin + 0.5*width
-    out_box[1]  = ymin + 0.5*height
-    out_box[2]  = width
-    out_box[3]  = height
+    width = xmax - xmin + 1.0
+    height = ymax - ymin + 1.0
+    out_box[0] = xmin + 0.5 * width
+    out_box[1] = ymin + 0.5 * height
+    out_box[2] = width
+    out_box[3] = height
 
   return out_box
+
 
 def bbox_transform(bbox):
   """convert a bbox of form [cx, cy, w, h] to [xmin, ymin, xmax, ymax]. Works
@@ -504,10 +480,10 @@ def bbox_transform(bbox):
   """
   with tf.variable_scope('bbox_transform') as scope:
     cx, cy, w, h = bbox
-    out_box = [[]]*4
-    out_box[0] = cx-w/2
-    out_box[1] = cy-h/2
-    out_box[2] = cx+w/2
-    out_box[3] = cy+h/2
+    out_box = [[]] * 4
+    out_box[0] = cx - w / 2
+    out_box[1] = cy - h / 2
+    out_box[2] = cx + w / 2
+    out_box[3] = cy + h / 2
 
   return out_box
