@@ -6,8 +6,8 @@ config = edict()
 config.IMG_HEIGHT = 100
 config.IMG_WIDTH = 100
 
-config.FEA_HEIGHT = 3
-config.FEA_WIDTH = 3
+config.FEA_HEIGHT = 4
+config.FEA_WIDTH = 4
 
 config.BATCH_SIZE = 2
 
@@ -17,7 +17,7 @@ config.LOSS_COEF_CONF_POS = 1
 config.LOSS_COEF_CONF_NEG = 1
 config.LOSS_COEF_BBOX = 1
 
-
+config.EXP_THRESH=1.0
 
 
 # config.ANCHOR_SHAPE = [[36., 37.], [366., 174.], [115., 59.],
@@ -28,5 +28,5 @@ config.ANCHOR_SHAPE = [[50./config.IMG_WIDTH, 50./config.IMG_HEIGHT],
 
 config.NUM_ANCHORS = len(config.ANCHOR_SHAPE)
 config.NUM_CLASSES = 3
-
+config.ANCHORS = config.NUM_ANCHORS*config.FEA_HEIGHT*config.FEA_WIDTH
 

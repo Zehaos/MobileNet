@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
+import numpy as np
 from configs.kitti_config import config
 
 
@@ -180,10 +181,10 @@ def encode_annos(image, labels, bboxes, anchors, num_classes):
     anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
 
   Returns:
-    input_mask: 2-D with shape `[num_anchors]`, indicate which anchor to be used to cal loss.
-    labels_input: 3-D with shape `[num_anchors, num_classes]`, one hot encode for every anchor.
-    box_delta_input: 3-D with shape `[num_anchors, 4]`.
-    box_input: 3-D with shape '[num_anchors, 4]'.
+    input_mask: 2-D with shape `[num_anchors, 1]`, indicate which anchor to be used to cal loss.
+    labels_input: 2-D with shape `[num_anchors, num_classes]`, one hot encode for every anchor.
+    box_delta_input: 2-D with shape `[num_anchors, 4]`.
+    box_input: 2-D with shape '[num_anchors, 4]'.
   """
   anchors_shape = anchors.get_shape().as_list()
   fea_h = anchors_shape[0]
@@ -214,7 +215,11 @@ def encode_annos(image, labels, bboxes, anchors, num_classes):
   )
   # anchor mask
   onehot_anchor = tf.one_hot(indices, num_anchors)
+  onehot_anchor = tf.squeeze(onehot_anchor, axis=1)
+  print("indices shape:", indices.get_shape().as_list())
+  print("one hot anchors shape:", onehot_anchor.get_shape().as_list())
   input_mask = tf.reduce_sum(onehot_anchor, axis=0)
+  input_mask = tf.reshape(input_mask, shape=[-1, 1])
   # delta
   box_delta_input = tf.scatter_nd(
     indices,
@@ -341,16 +346,16 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
       # The max x position is mc.IMAGE_WIDTH - 1 since we use zero-based
       # pixels. Same for y.
       xmins = tf.minimum(
-        tf.maximum(0.0, xmins), config.IMAGE_WIDTH - 1.0, name='bbox_xmin')
+        tf.maximum(0.0, xmins), config.IMG_WIDTH - 1.0, name='bbox_xmin')
 
       ymins = tf.minimum(
-        tf.maximum(0.0, ymins), config.IMAGE_HEIGHT - 1.0, name='bbox_ymin')
+        tf.maximum(0.0, ymins), config.IMG_HEIGHT - 1.0, name='bbox_ymin')
 
       xmaxs = tf.maximum(
-        tf.minimum(config.IMAGE_WIDTH - 1.0, xmaxs), 0.0, name='bbox_xmax')
+        tf.minimum(config.IMG_WIDTH - 1.0, xmaxs), 0.0, name='bbox_xmax')
 
       ymaxs = tf.maximum(
-        tf.minimum(config.IMAGE_HEIGHT - 1.0, ymaxs), 0.0, name='bbox_ymax')
+        tf.minimum(config.IMG_HEIGHT - 1.0, ymaxs), 0.0, name='bbox_ymax')
 
       det_boxes = tf.transpose(
         tf.stack(bbox_transform_inv([xmins, ymins, xmaxs, ymaxs])),
@@ -415,12 +420,12 @@ def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_con
     tf.losses.add_loss(class_loss)
 
   with tf.variable_scope('confidence_score_regression') as scope:
-    input_mask = tf.reshape(input_mask, [config.BATCH_SIZE, config.ANCHORS])
+    input_mask_ = tf.reshape(input_mask, [config.BATCH_SIZE, config.ANCHORS])
     conf_loss = tf.reduce_mean(
       tf.reduce_sum(
         tf.square((ious - pred_conf))
-        * (input_mask * config.LOSS_COEF_CONF_POS / num_objects
-           + (1 - input_mask) * config.LOSS_COEF_CONF_NEG / (config.ANCHORS - num_objects)),
+        * (input_mask_ * config.LOSS_COEF_CONF_POS / num_objects
+           + (1 - input_mask_) * config.LOSS_COEF_CONF_NEG / (config.ANCHORS - num_objects)),
         reduction_indices=[1]
       ),
       name='confidence_loss'

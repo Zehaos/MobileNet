@@ -487,24 +487,34 @@ def main(_):
         capacity=5 * config.BATCH_SIZE)  # FLAGS.batch_size)
 
       batch_queue = slim.prefetch_queue.prefetch_queue(
-        [image, input_mask, labels_input, box_delta_input, box_input], capacity=2 * deploy_config.num_clones)
+        [images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input], capacity=2 * deploy_config.num_clones)
 
     ####################
     # Define the model #
     ####################
     def clone_fn(batch_queue):
       """Allows data parallelism by creating multiple clones of network_fn."""
-      images, input_mask, labels_input, box_delta_input, box_input = batch_queue.dequeue()
-
+      images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = batch_queue.dequeue()
+      print("b_images shape:", images.get_shape().as_list())
+      print("b_input_mask shape:", b_input_mask.get_shape().as_list())
+      print("b_labels_input shape:", b_labels_input.get_shape().as_list())
+      print("b_box_delta_input shape:", b_box_delta_input.get_shape().as_list())
+      print("b_box_input shape:", b_box_input.get_shape().as_list())
       logits, end_points = network_fn(images)
       conv_ds_14 = end_points['MobileNet/conv_ds_14/depthwise_conv']
       dropout = slim.dropout(conv_ds_14, keep_prob=0.5, is_training=True)
 
-      num_output = config.NUM_ANCHORS * (config.NUM_CALSSES + 1 + 4)
+      num_output = config.NUM_ANCHORS * (config.NUM_CLASSES + 1 + 4)
       predict = slim.conv2d(dropout, num_output, kernel_size=(3, 3), stride=1, padding='SAME')
+      print("predict shape:", predict.get_shape().as_list())
+      print("anchor shape:", anchors.get_shape().as_list())
+      anchors_ = tf.reshape(anchors, shape=[-1, 4])
       pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
-        interpre_prediction(predict, input_mask, anchors, box_input, config.FEA_HEIGHT, config.FEA_WIDTH)
-      losses(input_mask, labels_input, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
+        interpre_prediction(predict, b_input_mask, anchors_, b_box_input, config.FEA_HEIGHT, config.FEA_WIDTH)
+      print("pred_box_delta shape:", pred_box_delta.get_shape().as_list())
+      print("pred_class_probs shape:", pred_class_probs.get_shape().as_list())
+      print("pred_conf shape:", pred_conf.get_shape().as_list())
+      losses(b_input_mask, b_labels_input, ious, b_box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
       return end_points
 
     # Gather initial summaries.
