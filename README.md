@@ -26,9 +26,6 @@ Environment: Ubuntu 16.04 LTS, Xeon E3-1231 v3, 4 Cores @ 3.40GHz, GTX1060.
 
 TF 1.0.1(native pip install), TF 1.1.0(build from source, optimization flag '-mavx2')
 
-Input image size: (224, 224, 3)
-
-Batch size: 1
 
 | Device | Forward| Forward-Backward |Instruction set|Quantized|Fused-BN|Remark|
 |--------|:---------:|:---------:|:---------:|:---------:|:---------:|:---------:|
@@ -40,6 +37,7 @@ Batch size: 1
 |CPU|**19ms**| 89ms|AVX2|-|On|TF 1.1.0|
 |GPU|3ms|16ms|-|-|-|TF 1.0.1, CUDA8.0, CUDNN5.1|
 |GPU|**3ms**|15ms|-|-|On|TF 1.0.1, CUDA8.0, CUDNN5.1|
+> Image Size: (224, 224, 3), Batch Size: 1
 
 ## Usage
 
@@ -64,11 +62,24 @@ python ./scripts/time_benchmark.py
 
 After download KITTI data, you need to split it data into train/val set.
 ```
-cd $SQDT_ROOT/data/KITTI/
+cd /path/to/kitti_root
 mkdir ImageSets
 cd ./ImageSets
 ls ../training/image_2/ | grep ".png" | sed s/.png// > trainval.txt
 python ./tools/kitti_random_split_train_val.py
+```
+kitti_root floder then look like below
+```
+kitti_root/
+                  |->training/
+                  |     |-> image_2/00****.png
+                  |     L-> label_2/00****.txt
+                  |->testing/
+                  |     L-> image_2/00****.png
+                  L->ImageSets/
+                        |-> trainval.txt
+                        |-> train.txt
+                        L-> val.txt
 ```
 Then convert it into tfrecord.
 ```
@@ -81,7 +92,6 @@ bash ./script/train_mobilenetdet_on_kitti.sh
 ```
 
 > The code of this subject is largely based on SqueezeDet & SSD-Tensorflow.
-
 > I would appreciated if you could feed back any bug.
 
 ## Trouble Shooting
