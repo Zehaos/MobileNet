@@ -60,17 +60,29 @@ python ./scripts/time_benchmark.py
 
 ### Train MobileNet Detector (Debugging)
 
-1. Prepare KITTI data. Use './tools/tf_convert_data.py'.
+1. Prepare KITTI data.
+
+After download KITTI data, you need to split it data into train/val set.
+```
+cd $SQDT_ROOT/data/KITTI/
+mkdir ImageSets
+cd ./ImageSets
+ls ../training/image_2/ | grep ".png" | sed s/.png// > trainval.txt
+python ./tools/kitti_random_split_train_val.py
+```
+Then convert it into tfrecord.
+```
+python ./tools/tf_convert_data.py
+```
 
 2. Mobify './script/train_mobilenet_on_kitti.sh' according to your environment.
 ```
 bash ./script/train_mobilenetdet_on_kitti.sh
-
 ```
 
 > The code of this subject is largely based on SqueezeDet & SSD-Tensorflow.
 
-> I would appreciated if you could feed back some bugs.
+> I would appreciated if you could feed back any bug.
 
 ## Trouble Shooting
 
