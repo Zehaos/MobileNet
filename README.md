@@ -70,7 +70,7 @@ bash ./script/train_mobilenetdet_on_kitti.sh
 
 > The code of this subject is largely based on SqueezeDet & SSD-Tensorflow.
 
-> I'm appreciated if you could feed back some bugs.
+> I would appreciated if you could feed back some bugs.
 
 ## Trouble Shooting
 
