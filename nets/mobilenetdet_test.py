@@ -62,7 +62,7 @@ class MobileNetDetTest(tf.test.TestCase):
       num_anchors = anchors_shape[2] * fea_h * fea_w
       anchors = tf.reshape(anchors, [num_anchors, 4])  # reshape anchors
       anchors = xywh_to_yxyx(anchors)
-      bbox = tf.constant([ 0.75, 0.75, 0.2,  0.2 ], dtype=tf.float32)
+      bbox = tf.constant([0.75, 0.75, 0.2, 0.2], dtype=tf.float32)
       bbox = xywh_to_yxyx(bbox)
       iou = batch_iou(anchors, bbox)
       anchor_idx = tf.arg_max(iou, dimension=0)
@@ -84,9 +84,30 @@ class MobileNetDetTest(tf.test.TestCase):
     bboxes_ = xywh_to_yxyx(bboxes)
     ious, indices = batch_iou_(anchors, bboxes_)
     with self.test_session() as sess:
-      ious, indices, bboxes_ = sess.run([ious, indices, bboxes], feed_dict={bboxes: [[0.25, 0.25, 0.5, 0.5 ],
-                                                                    [0.75, 0.75, 0.2, 0.2]]}
-                               )
+      ious, indices, bboxes_ = sess.run([ious, indices, bboxes], feed_dict={bboxes: [[0.25, 0.25, 0.5, 0.5],
+                                                                                     [0.75, 0.75, 0.2, 0.2]]}
+                                        )
+      print(ious)
+      print(indices)
+      print(bboxes_)
+
+  def test_batch_iou_fast(self):
+    anchors = set_anchors(img_shape=[config.IMG_HEIGHT, config.IMG_WIDTH],
+                          fea_shape=[config.FEA_HEIGHT, config.FEA_WIDTH])
+    anchors_shape = anchors.get_shape().as_list()
+    fea_h = anchors_shape[0]
+    fea_w = anchors_shape[1]
+    num_anchors = anchors_shape[2] * fea_h * fea_w
+    anchors = tf.reshape(anchors, [num_anchors, 4])  # reshape anchors
+    anchors = xywh_to_yxyx(anchors)
+    bboxes = tf.placeholder(dtype=tf.float32, shape=[None, 4])
+    bboxes_ = xywh_to_yxyx(bboxes)
+    ious, indices = batch_iou_fast(anchors, bboxes_)
+    with self.test_session() as sess:
+      ious, indices, bboxes_ = sess.run([ious, indices, bboxes],
+                                        feed_dict={bboxes: [[0.07692308, 0.025, 0.13333334, 0.04025765],
+                                                            [0.75, 0.75, 0.2, 0.2]]}
+                                        )
       print(ious)
       print(indices)
       print(bboxes_)

@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 import numpy as np
 from configs.kitti_config import config
 
@@ -136,6 +137,48 @@ def batch_iou_(anchors, bboxes):
   return ious, indices
 
 
+def batch_iou_fast(anchors, bboxes):
+  """ Compute iou of two batch of boxes. Box format '[y_min, x_min, y_max, x_max]'.
+  Args:
+    anchors: know shape
+    bboxes: dynamic shape
+  Return:
+    ious: 2-D with shape '[num_bboxes, num_anchors]'
+    indices: [num_bboxes, 1]
+  """
+  num_anchors = anchors.get_shape().as_list()[0]
+  tensor_num_bboxes = tf.shape(bboxes)[0]
+  indices = tf.reshape(tf.range(tensor_num_bboxes), shape=[-1, 1])
+  indices = tf.reshape(tf.stack([indices]*num_anchors, axis=1), shape=[-1, 1])
+  bboxes_m = tf.gather_nd(bboxes, indices)
+
+  anchors_m = tf.tile(anchors, [tensor_num_bboxes, 1])
+
+  lr = tf.maximum(
+    tf.minimum(bboxes_m[:, 3], anchors_m[:, 3]) -
+    tf.maximum(bboxes_m[:, 1], anchors_m[:, 1]),
+    0
+  )
+  tb = tf.maximum(
+    tf.minimum(bboxes_m[:, 2], anchors_m[:, 2]) -
+    tf.maximum(bboxes_m[:, 0], anchors_m[:, 0]),
+    0
+  )
+  intersection = tf.multiply(tb, lr)
+  union = tf.subtract(
+    tf.multiply((bboxes_m[:, 3] - bboxes_m[:, 1]), (bboxes_m[:, 2] - bboxes_m[:, 0])) +
+    tf.multiply((anchors_m[:, 3] - anchors_m[:, 1]), (anchors_m[:, 2] - anchors_m[:, 0])),
+    intersection
+  )
+  ious = tf.div(intersection, union)
+
+  ious = tf.reshape(ious, shape=[tensor_num_bboxes, num_anchors])
+
+  indices = tf.arg_max(ious, dimension=1)
+
+  return ious, indices
+
+
 def compute_delta(gt_box, anchor):
   """Compute delta, anchor+delta = gt_box. Box format '[cx, cy, w, h]'.
   Args:
@@ -169,7 +212,7 @@ def batch_delta(bboxes, anchors):
   return tf.stack([delta_x, delta_y, delta_w, delta_h], axis=1)
 
 
-# TODO(shizehao): turn to matrix manipulation
+# TODO(shizehao): improve speed, use sparse tensor instead
 def encode_annos(image, labels, bboxes, anchors, num_classes):
   """Encode annotations for losses computations.
   All the output tensors have a fix shape(none dynamic dimention).
@@ -194,7 +237,7 @@ def encode_annos(image, labels, bboxes, anchors, num_classes):
 
   # Cal iou, find the target anchor
   _anchors = xywh_to_yxyx(anchors)
-  ious, indices = batch_iou_(_anchors, bboxes)
+  ious, indices = batch_iou_fast(_anchors, bboxes)
   indices = tf.reshape(indices, shape=[-1, 1])
 
   target_anchors = tf.gather(anchors, indices)
@@ -492,3 +535,81 @@ def bbox_transform(bbox):
     out_box[3] = cy + h / 2
 
   return out_box
+
+
+def mobilenet(inputs,
+          is_training=True,
+          width_multiplier=1,
+          scope='MobileNet'):
+  def _depthwise_separable_conv(inputs,
+                                num_pwc_filters,
+                                width_multiplier,
+                                sc,
+                                downsample=False):
+    """ Helper function to build the depth-wise separable convolution layer.
+    """
+    num_pwc_filters = round(num_pwc_filters * width_multiplier)
+    _stride = 2 if downsample else 1
+
+    # skip pointwise by setting num_outputs=None
+    depthwise_conv = slim.separable_convolution2d(inputs,
+                                                  num_outputs=None,
+                                                  stride=_stride,
+                                                  depth_multiplier=1,
+                                                  kernel_size=[3, 3],
+                                                  scope=sc+'/depthwise_conv')
+
+    bn = slim.batch_norm(depthwise_conv, scope=sc+'/dw_batch_norm')
+    pointwise_conv = slim.convolution2d(bn,
+                                        num_pwc_filters,
+                                        kernel_size=[1, 1],
+                                        scope=sc+'/pointwise_conv')
+    bn = slim.batch_norm(pointwise_conv, scope=sc+'/pw_batch_norm')
+    return bn
+
+  with tf.variable_scope(scope) as sc:
+    end_points_collection = sc.name + '_end_points'
+    with slim.arg_scope([slim.convolution2d, slim.separable_convolution2d],
+                        activation_fn=None,
+                        outputs_collections=[end_points_collection]):
+      with slim.arg_scope([slim.batch_norm],
+                          is_training=is_training,
+                          activation_fn=tf.nn.relu):
+        net = slim.convolution2d(inputs, round(32 * width_multiplier), [3, 3], stride=2, padding='SAME', scope='conv_1')
+        net = slim.batch_norm(net, scope='conv_1/batch_norm')
+        net = _depthwise_separable_conv(net, 64, width_multiplier, sc='conv_ds_2')
+        net = _depthwise_separable_conv(net, 128, width_multiplier, downsample=True, sc='conv_ds_3')
+        net = _depthwise_separable_conv(net, 128, width_multiplier, sc='conv_ds_4')
+        net = _depthwise_separable_conv(net, 256, width_multiplier, downsample=True, sc='conv_ds_5')
+        net = _depthwise_separable_conv(net, 256, width_multiplier, sc='conv_ds_6')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, downsample=True, sc='conv_ds_7')
+
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_8')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_9')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_10')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_11')
+        net = _depthwise_separable_conv(net, 512, width_multiplier, sc='conv_ds_12')
+
+        net = _depthwise_separable_conv(net, 1024, width_multiplier, downsample=True, sc='conv_ds_13')
+        net = _depthwise_separable_conv(net, 1024, width_multiplier, sc='conv_ds_14')
+
+    end_points = slim.utils.convert_collection_to_dict(end_points_collection)
+
+  return end_points
+
+
+def mobilenet_arg_scope(weight_decay=0.0):
+  """Defines the default mobilenet argument scope.
+
+  Args:
+    weight_decay: The weight decay to use for regularizing the model.
+
+  Returns:
+    An `arg_scope` to use for the MobileNet model.
+  """
+  with slim.arg_scope(
+      [slim.convolution2d, slim.separable_convolution2d],
+      weights_initializer=slim.initializers.xavier_initializer(),
+      biases_initializer=slim.init_ops.zeros_initializer(),
+      weights_regularizer=slim.l2_regularizer(weight_decay)) as sc:
+    return sc
