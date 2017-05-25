@@ -21,13 +21,6 @@ class MobileNetDetTest(tf.test.TestCase):
       output = sess.run(bbox_yxyx)
       self.assertAllEqual(output, [[0, -0.5, 4, 2.5], [0, -0.5, 4, 2.5]])
 
-  def test_yxyx_to_xywh(self):
-    with self.test_session() as sess:
-      bbox = tf.constant([1, 2, 3, 4], dtype=tf.float32)
-      bbox_xywh = yxyx_to_xywh(bbox)
-      output = sess.run(bbox_xywh)
-      self.assertAllEqual(output, [3, 2, 2, 2])
-
   def test_scale_bbox(self):
     with self.test_session() as sess:
       bbox = tf.constant([[1, 2, 3, 4], [1, 2, 3, 4]], dtype=tf.float32)
@@ -149,3 +142,5 @@ class MobileNetDetTest(tf.test.TestCase):
       output = sess.run(anchors)
       self.assertAllEqual(np.shape(output), [config.FEA_HEIGHT, config.FEA_WIDTH, config.NUM_ANCHORS, 4])
       print("Anchors:", output)
+      print("Anchors shape:", np.shape(output))
+      print("Num of anchors:", config.NUM_ANCHORS)

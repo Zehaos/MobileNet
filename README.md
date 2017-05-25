@@ -55,8 +55,22 @@ bash ./script/train_mobilenet_on_imagenet.sh
 
 ### Benchmark speed
 ```
-python time_benchmark.py
+python ./scripts/time_benchmark.py
 ```
+
+### Train MobileNet Detector (Debugging)
+
+1. Prepare KITTI data. Use './tools/tf_convert_data.py'.
+
+2. Mobify './script/train_mobilenet_on_kitti.sh' according to your environment.
+```
+bash ./script/train_mobilenetdet_on_kitti.sh
+
+```
+
+> The code of this subject is largely based on SqueezeDet & SSD-Tensorflow.
+
+> I'm appreciated if you could feed back some bugs.
 
 ## Trouble Shooting
 
@@ -75,9 +89,11 @@ When using RMSprop training strategy, the checkpoint file size should be almost 
 - [x] Train on Imagenet
 - [x] Add Width Multiplier Hyperparameters
 - [x] Report training result
-- [ ] Intergrate into object detection task
+- [ ] Intergrate into object detection task(in progress)
 
 ## Reference
 [MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications](https://arxiv.org/abs/1704.04861)
 
 [SSD-Tensorflow](https://github.com/balancap/SSD-Tensorflow)
+
+[SqueezeDet](https://github.com/BichenWuUCB/squeezeDet)

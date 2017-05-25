@@ -19,17 +19,6 @@ def xywh_to_yxyx(bbox):
   return tf.stack([y_min, x_min, y_max, x_max], axis=_axis)
 
 
-def yxyx_to_xywh(bbox):
-  shape = bbox.get_shape().as_list()
-  _axis = 1 if len(shape) > 1 else 0
-  [y_min, x_min, y_max, x_max] = tf.unstack(bbox, axis=_axis)
-  x = 0.5 * (x_min + x_max)
-  y = 0.5 * (y_min + y_max)
-  w = x_max - x_min
-  h = y_max - y_min
-  return tf.stack([x, y, w, h], axis=_axis)
-
-
 def yxyx_to_xywh_(bbox):
   y_min = bbox[:, 0]
   x_min = bbox[:, 1]
@@ -285,8 +274,6 @@ def set_anchors(img_shape, fea_shape):
     anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`
 
   """
-  img_h = tf.cast(img_shape[0], tf.float32)
-  img_w = tf.cast(img_shape[1], tf.float32)
   H = fea_shape[0]
   W = fea_shape[1]
   B = config.NUM_ANCHORS
@@ -329,6 +316,7 @@ def set_anchors(img_shape, fea_shape):
 
 def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w):
   # probability
+  batch_size = tf.shape(input_mask)[0]
   num_class_probs = config.NUM_ANCHORS * config.NUM_CLASSES
   pred_class_probs = tf.reshape(
     tf.nn.softmax(
@@ -337,7 +325,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
         [-1, config.NUM_CLASSES]
       )
     ),
-    [config.BATCH_SIZE, config.NUM_ANCHORS * fea_h * fea_w, config.NUM_CLASSES],
+    [batch_size, config.NUM_ANCHORS * fea_h * fea_w, config.NUM_CLASSES],
     name='pred_class_probs'
   )
 
@@ -346,7 +334,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
   pred_conf = tf.sigmoid(
     tf.reshape(
       prediction[:, :, :, num_class_probs:num_confidence_scores],
-      [config.BATCH_SIZE, config.NUM_ANCHORS * fea_h * fea_w]
+      [batch_size, config.NUM_ANCHORS * fea_h * fea_w]
     ),
     name='pred_confidence_score'
   )
@@ -354,7 +342,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
   # bbox_delta
   pred_box_delta = tf.reshape(
     prediction[:, :, :, num_confidence_scores:],
-    [config.BATCH_SIZE, config.NUM_ANCHORS * fea_h * fea_w, 4],
+    [batch_size, config.NUM_ANCHORS * fea_h * fea_w, 4],
     name='bbox_delta'
   )
 
@@ -426,7 +414,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
             union = w1 * h1 + w2 * h2 - intersection
 
           return intersection / (union + config.EPSILON) \
-                 * tf.reshape(input_mask, [config.BATCH_SIZE, config.NUM_ANCHORS * fea_h * fea_w])
+                 * tf.reshape(input_mask, [batch_size, config.NUM_ANCHORS * fea_h * fea_w])
 
         # TODO(shizehao): need test
         ious = _tensor_iou(
@@ -437,7 +425,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
       with tf.variable_scope('probability') as scope:
         probs = tf.multiply(
           pred_class_probs,
-          tf.reshape(pred_conf, [config.BATCH_SIZE, config.NUM_ANCHORS * fea_h * fea_w, 1]),
+          tf.reshape(pred_conf, [batch_size, config.NUM_ANCHORS * fea_h * fea_w, 1]),
           name='final_class_prob'
         )
 
@@ -448,6 +436,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
 
 
 def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta):
+  batch_size = tf.shape(input_mask)[0]
   num_objects = tf.reduce_sum(input_mask, name='num_objects')
   with tf.variable_scope('class_regression') as scope:
     # cross-entropy: q * -log(p) + (1-q) * -log(1-p)
@@ -463,7 +452,7 @@ def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_con
     tf.losses.add_loss(class_loss)
 
   with tf.variable_scope('confidence_score_regression') as scope:
-    input_mask_ = tf.reshape(input_mask, [config.BATCH_SIZE, config.ANCHORS])
+    input_mask_ = tf.reshape(input_mask, [batch_size, config.ANCHORS])
     conf_loss = tf.reduce_mean(
       tf.reduce_sum(
         tf.square((ious - pred_conf))

@@ -197,7 +197,8 @@ def preprocess_for_train(image, height, width, labels, bboxes,
     image_with_box = tf.image.draw_bounding_boxes(tf.expand_dims(image, 0),
                                                   bboxes)
     tf.summary.image('image_with_bounding_boxes', image_with_box)
-    # Randomly flip the image horizontally.
+
+    # TODO(shizehao): Randomly flip the image horizontally.
     # flip with bbox
     # image, bboxes = flip_with_bboxes(image, bboxes)
 
@@ -209,10 +210,12 @@ def preprocess_for_train(image, height, width, labels, bboxes,
 
     tf.summary.image('final_distorted_image',
                      tf.expand_dims(image, 0))
+
     # TODO(shizehao): bistort bbox
     image = tf.squeeze(tf.image.resize_nearest_neighbor(tf.expand_dims(image,axis=0),size=[height, width]))
     image = tf.subtract(image, 0.5)
     image = tf.multiply(image, 2.0)
+
     return image, labels, bboxes
 
 

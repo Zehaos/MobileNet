@@ -30,6 +30,7 @@ from nets import resnet_v1
 from nets import resnet_v2
 from nets import vgg
 from nets import mobilenet
+from nets import mobilenetdet
 
 slim = tf.contrib.slim
 
@@ -53,7 +54,8 @@ networks_map = {'alexnet_v2': alexnet.alexnet_v2,
                 'resnet_v2_101': resnet_v2.resnet_v2_101,
                 'resnet_v2_152': resnet_v2.resnet_v2_152,
                 'resnet_v2_200': resnet_v2.resnet_v2_200,
-                'mobilenet': mobilenet.mobilenet
+                'mobilenet': mobilenet.mobilenet,
+                'mobilenetdet': mobilenetdet.mobilenet
                }
 
 arg_scopes_map = {'alexnet_v2': alexnet.alexnet_v2_arg_scope,
@@ -77,7 +79,8 @@ arg_scopes_map = {'alexnet_v2': alexnet.alexnet_v2_arg_scope,
                   'resnet_v2_101': resnet_v2.resnet_arg_scope,
                   'resnet_v2_152': resnet_v2.resnet_arg_scope,
                   'resnet_v2_200': resnet_v2.resnet_arg_scope,
-                  'mobilenet': mobilenet.mobilenet_arg_scope
+                  'mobilenet': mobilenet.mobilenet_arg_scope,
+                  'mobilenetdet': mobilenetdet.mobilenet_arg_scope
                  }
 
 
@@ -107,6 +110,8 @@ def get_network_fn(name, num_classes, weight_decay=0.0, is_training=False, width
     with slim.arg_scope(arg_scope):
       if name=='mobilenet':
         return func(images, num_classes, is_training=is_training, width_multiplier=width_multiplier)
+      elif name=='mobilenetdet':
+        return func(images, is_training=is_training, width_multiplier=width_multiplier)
       else:
         return func(images, num_classes, is_training=is_training)
   if hasattr(func, 'default_image_size'):
