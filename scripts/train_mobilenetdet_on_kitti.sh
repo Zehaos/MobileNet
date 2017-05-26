@@ -11,7 +11,7 @@
 TRAIN_DIR=/tmp/mobilenetdet-model
 
 # Where the dataset is saved to.
-DATASET_DIR=/home/zehao/Dataset/KITII/tfrecord
+DATASET_DIR=/home/zehao/PycharmProjects/MobileNet/data/KITTI
 
 # Where the checkpoint file stored.
 CHECK_POINT=/home/zehao/PycharmProjects/MobileNet/model
@@ -23,7 +23,8 @@ python train_object_detector.py \
   --dataset_split_name=train \
   --dataset_dir=${DATASET_DIR} \
   --checkpoint_path=${CHECK_POINT} \
-  --model_name=mobilenet \
+  --ignore_missing_vars=True \
+  --model_name=mobilenetdet \
   --preprocessing_name=mobilenetdet \
   --width_multiplier=1.0 \
   --max_number_of_steps=1000000 \
