@@ -25,7 +25,8 @@ from datasets import dataset_factory
 from deployment import model_deploy
 from nets import nets_factory
 from preprocessing import preprocessing_factory
-from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction, scale_bboxes
+from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction, \
+  scale_bboxes, bbox_transform_inv, rearrange_coords, yxyx_to_xywh_
 from configs.kitti_config import config
 
 import tensorflow.contrib.slim as slim
@@ -448,14 +449,15 @@ def main(_):
         num_readers=FLAGS.num_readers,
         common_queue_capacity=20 * FLAGS.batch_size,
         common_queue_min=10 * FLAGS.batch_size)
+
+      # gt_bboxes format [ymin, xmin, ymax, xmax]
       [image, img_shape, gt_labels, gt_bboxes] = provider.get(['image', 'shape',
                                                                'object/label',
                                                                'object/bbox'])
 
-      # train_image_size = FLAGS.train_image_size or network_fn.default_image_size
+      # Preprocesing
+      # gt_bboxes = scale_bboxes(gt_bboxes, img_shape)  # bboxes format [0,1) for tf draw
 
-      # detection preprocesing
-      gt_bboxes = scale_bboxes(gt_bboxes, img_shape)  # bboxes format [0,1)
       gt_bboxes = tf.expand_dims(gt_bboxes, axis=0)
       image, gt_labels, gt_bboxes = image_preprocessing_fn(image,
                                                            config.IMG_HEIGHT,
@@ -465,7 +467,11 @@ def main(_):
                                                            )
       gt_bboxes = tf.reshape(gt_bboxes, tf.shape(gt_bboxes)[1:])
 
-      # encode annotations for losses computation
+      #############################################
+      # Encode annotations for losses computation #
+      #############################################
+
+      # anchors format [cx, cy, w, h]
       anchors = set_anchors([config.IMG_HEIGHT, config.IMG_WIDTH], [config.FEA_HEIGHT, config.FEA_WIDTH])
 
       print("images shape:", image.get_shape().as_list())
@@ -473,15 +479,18 @@ def main(_):
       print("gt_bboxes shape:", gt_bboxes.get_shape().as_list())
       print("anchors shape:", anchors.get_shape().as_list())
 
+
       input_mask, labels_input, box_delta_input, box_input = encode_annos(image,
                                                                           gt_labels,
                                                                           gt_bboxes,
                                                                           anchors,
                                                                           config.NUM_CLASSES)
 
+      box_input = yxyx_to_xywh_(box_input)  # [ymin, xmin, ymax, xmax] -> [cx, cy, w, h]
+
       images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = tf.train.batch(
         [image, input_mask, labels_input, box_delta_input, box_input],
-        batch_size= FLAGS.batch_size,
+        batch_size=FLAGS.batch_size,
         num_threads=FLAGS.num_preprocessing_threads,
         capacity=5 * FLAGS.batch_size)
 
