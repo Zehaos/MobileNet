@@ -25,6 +25,9 @@ python tf_convert_data.py \
 ```
 """
 import tensorflow as tf
+import os, sys
+curr_path = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(curr_path, '../'))
 
 from datasets import pascalvoc_to_tfrecords, kitti_object_to_tfrecords
 
