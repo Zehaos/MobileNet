@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from configs.kitti_config import config
 
 
@@ -281,15 +282,22 @@ def arg_closest_anchor(bboxes, anchors):
 
 
 def update_tensor(ref, indices, update):
-  zero = tf.scatter_nd(indices,
-                        tf.zeros_like(indices),
-                        shape=tf.cast(tf.shape(ref), tf.int64)
-                        )
-  update_value = tf.scatter_nd(indices,
-                               tf.reshape(update, shape=[-1, 1]),
-                               shape=tf.cast(tf.shape(ref), tf.int64)
-                               )
-  return ref*zero+update_value
+  zero = tf.cast(tf.sparse_to_dense(indices,
+                                    tf.shape(ref, out_type=tf.int64),
+                                    0,
+                                    default_value=1
+                                    ),
+                 dtype=tf.int64
+                 )
+
+  update_value = tf.cast(tf.sparse_to_dense(indices,
+                                    tf.shape(ref, out_type=tf.int64),
+                                    update,
+                                    default_value=0
+                                    ),
+                 dtype=tf.int64
+                 )
+  return ref * zero + update_value
 
 
 # TODO(shizehao): 1.deal with delta. 2.improve speed, use sparse tensor instead
@@ -320,22 +328,15 @@ def encode_annos(labels, bboxes, anchors, num_classes):
   bbox_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
   iou_indices = tf.concat([bbox_indices, tf.cast(anchor_indices, dtype=tf.int32)], axis=1)
   target_iou = tf.gather_nd(ious, iou_indices)
-  none_overlap_bbox_indices = tf.where(target_iou <= 0)
+  none_overlap_bbox_indices = tf.where(target_iou <= 0) # 1-D
+
 
   # find it's corresponding anchor
-  closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors)
-  none_overlap_bbox_indices = tf.reshape(none_overlap_bbox_indices, shape=[-1, 1])
-  # update anchor_indices
-  # anchor_indices = tf.scatter_nd_update(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
-  # zero_ = tf.scatter_nd(none_overlap_bbox_indices,
-  #                       tf.zeros_like(none_overlap_bbox_indices),
-  #                       shape=tf.cast(tf.shape(anchor_indices), tf.int64)
-  #                       )
-  # update_value = tf.scatter_nd(none_overlap_bbox_indices,
-  #                              tf.reshape(closest_anchor_indices, shape=[-1, 1]),
-  #                              shape=tf.cast(tf.shape(anchor_indices), tf.int64)
-  #                              )
-  # anchor_indices = anchor_indices * zero_ + update_value
+  closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors) # 1-D
+
+  anchor_indices = tf.reshape(anchor_indices, shape=[-1])
+  anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
+  anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
 
   target_anchors = tf.gather_nd(anchors, anchor_indices)
 

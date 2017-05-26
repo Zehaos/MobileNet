@@ -48,11 +48,11 @@ class MobileNetDetTest(tf.test.TestCase):
 
   def test_update_tensor(self):
     with self.test_session() as sess:
-      ref = tf.convert_to_tensor([[1], [2], [3]], dtype=tf.int64)
-      indices = tf.convert_to_tensor([[0]], dtype=tf.int64)
-      update = tf.convert_to_tensor([[9]], dtype=tf.int64)
+      ref = tf.placeholder(dtype=tf.int64, shape=[None])#tf.convert_to_tensor([1, 2, 3], dtype=tf.int64)
+      indices = tf.convert_to_tensor([0], dtype=tf.int64)
+      update = tf.convert_to_tensor([9], dtype=tf.int64)
       tensor_updated = update_tensor(ref, indices, update)
-      output = sess.run(tensor_updated)
+      output = sess.run(tensor_updated, feed_dict={ref: [1, 2, 3]})
       print("test update tensor:")
       print("tensor updated", output)
 
@@ -77,6 +77,7 @@ class MobileNetDetTest(tf.test.TestCase):
         sess.run([input_mask, labels_input, box_delta_input, box_input])
 
       print("input_mask:", out_input_mask)
+      print(np.where(out_input_mask>0))
       print("box_input:", out_box_input)
       print("label_input:", out_labels_input)
       print("box_delta_input:", out_box_delta_input)
