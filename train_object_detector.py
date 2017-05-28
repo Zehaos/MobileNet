@@ -25,8 +25,11 @@ from datasets import dataset_factory
 from deployment import model_deploy
 from nets import nets_factory
 from preprocessing import preprocessing_factory
-from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction, \
-  scale_bboxes, bbox_transform_inv, rearrange_coords, yxyx_to_xywh_
+# from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction, \
+#   scale_bboxes, bbox_transform_inv, rearrange_coords, yxyx_to_xywh_
+
+from utils.det_utils import encode_annos, bbox_transform, bbox_transform_inv, \
+  yxyx_to_xywh, losses, interpre_prediction, scale_bboxes
 from configs.kitti_config import config
 
 import tensorflow.contrib.slim as slim
@@ -472,21 +475,15 @@ def main(_):
       #############################################
 
       # anchors format [cx, cy, w, h]
-      anchors = set_anchors([config.IMG_HEIGHT, config.IMG_WIDTH], [config.FEA_HEIGHT, config.FEA_WIDTH])
+      anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
 
-      print("images shape:", image.get_shape().as_list())
-      print("gt_labels shape:", gt_labels.get_shape().as_list())
-      print("gt_bboxes shape:", gt_bboxes.get_shape().as_list())
-      print("anchors shape:", anchors.get_shape().as_list())
-
-
-      input_mask, labels_input, box_delta_input, box_input = encode_annos(image,
-                                                                          gt_labels,
+      # encode annos
+      input_mask, labels_input, box_delta_input, box_input = encode_annos(gt_labels,
                                                                           gt_bboxes,
                                                                           anchors,
                                                                           config.NUM_CLASSES)
 
-      box_input = yxyx_to_xywh_(box_input)  # [ymin, xmin, ymax, xmax] -> [cx, cy, w, h]
+      box_input = yxyx_to_xywh(box_input)  # [ymin, xmin, ymax, xmax] -> [cx, cy, w, h]
 
       images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = tf.train.batch(
         [image, input_mask, labels_input, box_delta_input, box_input],
@@ -503,6 +500,9 @@ def main(_):
     def clone_fn(batch_queue):
       """Allows data parallelism by creating multiple clones of network_fn."""
       images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = batch_queue.dequeue()
+
+      # b_input_mask = tf.Print([b_input_mask], [images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input], "input_mask")
+
       end_points = network_fn(images)
       conv_ds_14 = end_points['MobileNet/conv_ds_14/depthwise_conv']
       dropout = slim.dropout(conv_ds_14, keep_prob=0.5, is_training=True)
@@ -512,9 +512,8 @@ def main(_):
                             weights_initializer=tf.random_normal_initializer(stddev=0.0001),
                             scope="MobileNet/conv_predict")
 
-      anchors_ = tf.reshape(anchors, shape=[-1, 4])
       pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
-        interpre_prediction(predict, b_input_mask, anchors_, b_box_input, config.FEA_HEIGHT, config.FEA_WIDTH)
+        interpre_prediction(predict, b_input_mask, anchors, b_box_input, config.FEA_HEIGHT, config.FEA_WIDTH)
       losses(b_input_mask, b_labels_input, ious, b_box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
       return end_points
 

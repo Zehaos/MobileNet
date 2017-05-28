@@ -192,11 +192,12 @@ def preprocess_for_train(image, height, width, labels, bboxes,
   with tf.name_scope(scope, 'distort_image', [image, height, width, bboxes]):
     if image.dtype != tf.float32:
       image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+
     # Each bounding box has shape [1, num_boxes, box coords] and
     # the coordinates are ordered [ymin, xmin, ymax, xmax].
-    image_with_box = tf.image.draw_bounding_boxes(tf.expand_dims(image, 0),
-                                                  bboxes)
-    tf.summary.image('image_with_bounding_boxes', image_with_box)
+    # image_with_box = tf.image.draw_bounding_boxes(tf.expand_dims(image, 0),
+    #                                               bboxes)
+    # tf.summary.image('image_with_bounding_boxes', image_with_box)
 
     # TODO(shizehao): Randomly flip the image horizontally.
     # flip with bbox
