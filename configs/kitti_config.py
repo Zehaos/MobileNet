@@ -3,8 +3,8 @@ import numpy as np
 
 config = edict()
 
-config.IMG_HEIGHT = 1242
-config.IMG_WIDTH = 375
+config.IMG_HEIGHT = 375
+config.IMG_WIDTH = 1242
 
 # TODO(shizehao): infer fea shape in run time
 config.FEA_HEIGHT = 12
