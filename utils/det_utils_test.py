@@ -17,11 +17,12 @@ class MobileNetDetTest(tf.test.TestCase):
     ious = batch_iou_fast(anchors, bboxes_)
     with self.test_session() as sess:
       ious, bboxes_ = sess.run([ious, bboxes],
-                                        feed_dict={bboxes: [config.ANCHOR_SHAPE[0],
-                                                            config.ANCHOR_SHAPE[-1]]}
+                                        feed_dict={bboxes: [[599.37, 212.45, 27.62, 25.34],
+                                                            config.ANCHOR_SHAPE[2]]}
                                         )
-      print(ious)
-      print(bboxes_)
+      print("ious:", ious)
+      print("max iou idx:", np.argmax(ious, axis=-1))
+      print("bboxes:", bboxes_)
 
   def test_set_anchors(self):
     with self.test_session() as sess:
@@ -37,9 +38,10 @@ class MobileNetDetTest(tf.test.TestCase):
     with self.test_session() as sess:
       anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
       bbox_1 = tf.convert_to_tensor(config.ANCHOR_SHAPE[0], dtype=tf.float32)
-      bbox_2 = tf.convert_to_tensor([646.1, 2210.9, 73., 44.], dtype=tf.float32)
+      bbox_2 = tf.convert_to_tensor(config.ANCHOR_SHAPE[-1], dtype=tf.float32)
       bboxes = tf.stack([bbox_1, bbox_2], axis=0)
       bboxes = xywh_to_yxyx(bboxes)
+      anchors = xywh_to_yxyx(anchors)
       indices = arg_closest_anchor(bboxes, anchors)
       output = sess.run(indices)
       print('test_arg_closest_anchor')
@@ -58,33 +60,35 @@ class MobileNetDetTest(tf.test.TestCase):
 
   def test_encode_annos(self):
     with self.test_session() as sess:
-      num_obj = 2
+      num_obj = 4
       num_classes = config.NUM_CLASSES
 
       labels = tf.constant(1, shape=[num_obj])
       anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
 
       # Construct test bbox
-      bbox_1 = tf.convert_to_tensor(config.ANCHOR_SHAPE[0], dtype=tf.float32)
-      bbox_2 = tf.convert_to_tensor([646.1, 2210.9, 73., 44.], dtype=tf.float32)
-      bboxes = tf.stack([bbox_1, bbox_2], axis=0)
+      # bbox_1 = tf.convert_to_tensor(config.ANCHOR_SHAPE[0], dtype=tf.float32)
+      # bbox_2 = tf.convert_to_tensor(config.ANCHOR_SHAPE[1], dtype=tf.float32)
+      # bbox_3 = tf.convert_to_tensor(config.ANCHOR_SHAPE[2], dtype=tf.float32)
+      # bbox_4 = tf.convert_to_tensor(config.ANCHOR_SHAPE[3], dtype=tf.float32)
+      bbox_1 = tf.convert_to_tensor([599.37, 212.45, 27.62, 25.34], dtype=tf.float32)
+      bbox_2 = tf.convert_to_tensor([922.14, 233.06, 91.41, 41.1], dtype=tf.float32)
+      bbox_3 = tf.convert_to_tensor([862.41, 232.61, 86.96, 44.73], dtype=tf.float32)
+      bbox_4 = tf.convert_to_tensor([729.87, 215.27, 32.22, 21.37], dtype=tf.float32)
+      bboxes = tf.stack([bbox_1, bbox_2, bbox_3, bbox_4], axis=0)
       bboxes = xywh_to_yxyx(bboxes)
 
       input_mask, labels_input, box_delta_input, box_input = \
         encode_annos(labels, bboxes, anchors, num_classes)
 
-      out_input_mask, out_labels_input, out_box_delta_input, out_box_input = \
-        sess.run([input_mask, labels_input, box_delta_input, box_input])
+      out_input_mask, out_labels_input, out_box_delta_input, out_box_input, out_anchors = \
+        sess.run([input_mask, labels_input, box_delta_input, box_input, anchors])
 
-      print("input_mask:", out_input_mask)
-      print(np.where(out_input_mask>0))
-      print("box_input:", out_box_input)
-      print("label_input:", out_labels_input)
-      print("box_delta_input:", out_box_delta_input)
-      print("shape:",
-            "input_mask:", np.shape(out_input_mask),
-            "labels_input:", np.shape(out_labels_input),
-            "box_delta_input:", np.shape(out_box_delta_input),
-            "box_input:", np.shape(out_box_input)
-            )
+
+      print(np.where(out_input_mask > 0))
+      print(out_input_mask[2268], out_input_mask[2726], out_input_mask[2708], out_input_mask[2312])
+      print(out_box_delta_input[2268], out_box_delta_input[2726], out_box_delta_input[2708], out_box_delta_input[2312])
+      print(out_labels_input[2268], out_labels_input[2726], out_labels_input[2708], out_labels_input[2312])
+      print(out_box_input[2268], out_box_input[2726], out_box_input[2708], out_box_input[2312])
+
 

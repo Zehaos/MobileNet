@@ -52,6 +52,171 @@ def bbox_transform(bbox):
   return out_box
 
 
+def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w):
+  # probability
+  batch_size = tf.shape(input_mask)[0]
+  num_class_probs = config.NUM_ANCHORS * config.NUM_CLASSES
+  pred_class_probs = tf.reshape(
+    tf.nn.softmax(
+      tf.reshape(
+        prediction[:, :, :, :num_class_probs],
+        [-1, config.NUM_CLASSES]
+      )
+    ),
+    [batch_size, config.NUM_ANCHORS * fea_h * fea_w, config.NUM_CLASSES],
+    name='pred_class_probs'
+  )
+
+  # confidence
+  num_confidence_scores = config.NUM_ANCHORS + num_class_probs
+  pred_conf = tf.sigmoid(
+    tf.reshape(
+      prediction[:, :, :, num_class_probs:num_confidence_scores],
+      [batch_size, config.NUM_ANCHORS * fea_h * fea_w]
+    ),
+    name='pred_confidence_score'
+  )
+
+  # bbox_delta
+  pred_box_delta = tf.reshape(
+    prediction[:, :, :, num_confidence_scores:],
+    [batch_size, config.NUM_ANCHORS * fea_h * fea_w, 4],
+    name='bbox_delta'
+  )
+
+  # number of object. Used to normalize bbox and classification loss
+  num_objects = tf.reduce_sum(input_mask, name='num_objects')
+
+  with tf.variable_scope('bbox') as scope:
+    with tf.variable_scope('stretching'):
+      delta_x, delta_y, delta_w, delta_h = tf.unstack(
+        pred_box_delta, axis=2)
+
+      anchor_x = anchors[:, 0]
+      anchor_y = anchors[:, 1]
+      anchor_w = anchors[:, 2]
+      anchor_h = anchors[:, 3]
+
+      box_center_x = tf.identity(
+        anchor_x + delta_x * anchor_w, name='bbox_cx')
+      box_center_y = tf.identity(
+        anchor_y + delta_y * anchor_h, name='bbox_cy')
+      box_width = tf.identity(
+        anchor_w * safe_exp(delta_w, config.EXP_THRESH),
+        name='bbox_width')
+      box_height = tf.identity(
+        anchor_h * safe_exp(delta_h, config.EXP_THRESH),
+        name='bbox_height')
+
+    with tf.variable_scope('trimming'):
+      xmins, ymins, xmaxs, ymaxs = bbox_transform(
+        [box_center_x, box_center_y, box_width, box_height])
+
+      # The max x position is mc.IMAGE_WIDTH - 1 since we use zero-based
+      # pixels. Same for y.
+      xmins = tf.minimum(
+        tf.maximum(0.0, xmins), config.IMG_WIDTH - 1.0, name='bbox_xmin')
+
+      ymins = tf.minimum(
+        tf.maximum(0.0, ymins), config.IMG_HEIGHT - 1.0, name='bbox_ymin')
+
+      xmaxs = tf.maximum(
+        tf.minimum(config.IMG_WIDTH - 1.0, xmaxs), 0.0, name='bbox_xmax')
+
+      ymaxs = tf.maximum(
+        tf.minimum(config.IMG_HEIGHT - 1.0, ymaxs), 0.0, name='bbox_ymax')
+
+      det_boxes = tf.transpose(
+        tf.stack(bbox_transform_inv([xmins, ymins, xmaxs, ymaxs])),
+        (1, 2, 0), name='bbox'
+      )
+
+      with tf.variable_scope('IOU'):
+        def _tensor_iou(box1, box2):
+          with tf.variable_scope('intersection'):
+            xmin = tf.maximum(box1[0], box2[0], name='xmin')
+            ymin = tf.maximum(box1[1], box2[1], name='ymin')
+            xmax = tf.minimum(box1[2], box2[2], name='xmax')
+            ymax = tf.minimum(box1[3], box2[3], name='ymax')
+
+            w = tf.maximum(0.0, xmax - xmin, name='inter_w')
+            h = tf.maximum(0.0, ymax - ymin, name='inter_h')
+            intersection = tf.multiply(w, h, name='intersection')
+
+          with tf.variable_scope('union'):
+            w1 = tf.subtract(box1[2], box1[0], name='w1')
+            h1 = tf.subtract(box1[3], box1[1], name='h1')
+            w2 = tf.subtract(box2[2], box2[0], name='w2')
+            h2 = tf.subtract(box2[3], box2[1], name='h2')
+
+            union = w1 * h1 + w2 * h2 - intersection
+
+          return intersection / (union + config.EPSILON) \
+                 * tf.reshape(input_mask, [batch_size, config.NUM_ANCHORS * fea_h * fea_w])
+
+        # TODO(shizehao): need test
+        ious = _tensor_iou(
+          bbox_transform(tf.unstack(det_boxes, axis=2)),
+          bbox_transform(tf.unstack(box_input, axis=2))
+        )
+
+      with tf.variable_scope('probability') as scope:
+        probs = tf.multiply(
+          pred_class_probs,
+          tf.reshape(pred_conf, [batch_size, config.NUM_ANCHORS * fea_h * fea_w, 1]),
+          name='final_class_prob'
+        )
+
+        det_probs = tf.reduce_max(probs, 2, name='score')
+        det_class = tf.argmax(probs, 2, name='class_idx')
+
+  return pred_box_delta, pred_class_probs, pred_conf, ious, det_probs, det_boxes, det_class
+
+
+def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta):
+  batch_size = tf.shape(input_mask)[0]
+  num_objects = tf.reduce_sum(input_mask, name='num_objects')
+  with tf.variable_scope('class_regression') as scope:
+    # cross-entropy: q * -log(p) + (1-q) * -log(1-p)
+    # add a small value into log to prevent blowing up
+    class_loss = tf.truediv(
+      tf.reduce_sum(
+        (labels * (-tf.log(pred_class_probs + config.EPSILON))
+         + (1 - labels) * (-tf.log(1 - pred_class_probs + config.EPSILON)))
+        * input_mask * config.LOSS_COEF_CLASS),
+      num_objects,
+      name='class_loss'
+    )
+    tf.losses.add_loss(class_loss)
+
+  with tf.variable_scope('confidence_score_regression') as scope:
+    input_mask_ = tf.reshape(input_mask, [batch_size, config.ANCHORS])
+    conf_loss = tf.reduce_mean(
+      tf.reduce_sum(
+        tf.square((ious - pred_conf))
+        * (input_mask_ * config.LOSS_COEF_CONF_POS / num_objects
+           + (1 - input_mask_) * config.LOSS_COEF_CONF_NEG / (config.ANCHORS - num_objects)),
+        reduction_indices=[1]
+      ),
+      name='confidence_loss'
+    )
+    tf.losses.add_loss(conf_loss)
+
+  with tf.variable_scope('bounding_box_regression') as scope:
+    bbox_loss = tf.truediv(
+      tf.reduce_sum(
+        config.LOSS_COEF_BBOX * tf.square(
+          input_mask * (pred_box_delta - box_delta_input))),
+      num_objects,
+      name='bbox_loss'
+    )
+    tf.losses.add_loss(bbox_loss)
+
+  # add above losses as well as weight decay losses to form the total loss
+  loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+  return loss
+
+
 # ################# MobileNet Det ########################
 
 def xywh_to_yxyx(bbox):
@@ -157,29 +322,6 @@ def batch_iou(bboxes, bbox):
   return iou
 
 
-def batch_iou_(anchors, bboxes):
-  """ Compute iou of two batch of boxes. Box format '[y_min, x_min, y_max, x_max]'.
-  Args:
-    anchors: know shape
-    bboxes: dynamic shape
-  Return:
-    ious: 2-D with shape '[num_bboxes, num_anchors]'
-    indices: [num_bboxes, 1]
-  """
-  num_anchors = anchors.get_shape().as_list()[0]
-  ious_list = []
-  for i in range(num_anchors):
-    anchor = anchors[i]
-    _ious = batch_iou(bboxes, anchor)
-    ious_list.append(_ious)
-  ious = tf.stack(ious_list, axis=0)
-  ious = tf.transpose(ious)
-
-  indices = tf.arg_max(ious, dimension=1)
-
-  return ious, indices
-
-
 def batch_iou_fast(anchors, bboxes):
   """ Compute iou of two batch of boxes. Box format '[y_min, x_min, y_max, x_max]'.
   Args:
@@ -193,11 +335,12 @@ def batch_iou_fast(anchors, bboxes):
 
   box_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
   box_indices = tf.reshape(tf.stack([box_indices] * num_anchors, axis=1), shape=[-1, 1])
+  # box_indices = tf.concat([box_indices] * num_anchors, axis=0)
+  # box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
   bboxes_m = tf.gather_nd(bboxes, box_indices)
 
   anchors_m = tf.tile(anchors, [num_bboxes, 1])
 
-  print(bboxes_m.get_shape().as_list())
   lr = tf.maximum(
     tf.minimum(bboxes_m[:, 3], anchors_m[:, 3]) -
     tf.maximum(bboxes_m[:, 1], anchors_m[:, 1]),
@@ -291,16 +434,15 @@ def update_tensor(ref, indices, update):
                  )
 
   update_value = tf.cast(tf.sparse_to_dense(indices,
-                                    tf.shape(ref, out_type=tf.int64),
-                                    update,
-                                    default_value=0
-                                    ),
-                 dtype=tf.int64
-                 )
+                                            tf.shape(ref, out_type=tf.int64),
+                                            update,
+                                            default_value=0
+                                            ),
+                         dtype=tf.int64
+                         )
   return ref * zero + update_value
 
 
-# TODO(shizehao): 1.deal with delta. 2.improve speed, use sparse tensor instead
 def encode_annos(labels, bboxes, anchors, num_classes):
   """Encode annotations for losses computations.
   All the output tensors have a fix shape(none dynamic dimention).
@@ -308,7 +450,7 @@ def encode_annos(labels, bboxes, anchors, num_classes):
   Args:
     labels: 1-D with shape `[num_bounding_boxes]`.
     bboxes: 2-D with shape `[num_bounding_boxes, 4]`. Format [ymin, xmin, ymax, xmax]
-    anchors: 4-D tensor with shape `[fea_h, fea_w, num_anchors, 4]`. Format [cx, cy, w, h]
+    anchors: 4-D tensor with shape `[num_anchors, 4]`. Format [cx, cy, w, h]
 
   Returns:
     input_mask: 2-D with shape `[num_anchors, 1]`, indicate which anchor to be used to cal loss.
@@ -320,8 +462,8 @@ def encode_annos(labels, bboxes, anchors, num_classes):
   num_bboxes = tf.shape(bboxes)[0]
 
   # Cal iou, find the target anchor
-  _anchors = xywh_to_yxyx(anchors)
-  ious = batch_iou_fast(_anchors, bboxes)
+
+  ious = batch_iou_fast(xywh_to_yxyx(anchors), bboxes)
   anchor_indices = tf.reshape(tf.arg_max(ious, dimension=1), shape=[-1, 1])  # target anchor indices
 
   # find the none-overlap bbox
@@ -340,27 +482,29 @@ def encode_annos(labels, bboxes, anchors, num_classes):
 
   target_anchors = tf.gather_nd(anchors, anchor_indices)
 
-  delta = batch_delta(yxyx_to_xywh(bboxes), target_anchors)
+  bboxes = yxyx_to_xywh(bboxes)
+
+  delta = batch_delta(bboxes, target_anchors)
 
   # bbox
-  box_input = tf.scatter_nd(
-    anchor_indices,
-    bboxes,
-    shape=[num_anchors, 4]
-  )
+  box_input = tf.scatter_nd(anchor_indices,
+                            bboxes,
+                            shape=[num_anchors, 4]
+                            )
 
   # label
-  labels_input = tf.scatter_nd(
-    anchor_indices,
-    tf.one_hot(labels, num_classes),
-    shape=[num_anchors, num_classes]
-  )
+  labels_input = tf.scatter_nd(anchor_indices,
+                               tf.one_hot(labels, num_classes),
+                               shape=[num_anchors, num_classes]
+                               )
 
   # anchor mask
-  onehot_anchor = tf.one_hot(anchor_indices, num_anchors)
-  onehot_anchor = tf.squeeze(onehot_anchor, axis=1)
-  input_mask = tf.reduce_sum(onehot_anchor, axis=0)
+  input_mask = tf.scatter_nd(anchor_indices,
+                             tf.ones([num_bboxes]),
+                             shape=[num_anchors])
   input_mask = tf.reshape(input_mask, shape=[-1, 1])
+
+
 
   # delta
   box_delta_input = tf.scatter_nd(
