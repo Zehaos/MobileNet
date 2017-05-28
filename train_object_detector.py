@@ -25,11 +25,9 @@ from datasets import dataset_factory
 from deployment import model_deploy
 from nets import nets_factory
 from preprocessing import preprocessing_factory
-# from nets.mobilenetdet import encode_annos, losses, set_anchors, interpre_prediction, \
-#   scale_bboxes, bbox_transform_inv, rearrange_coords, yxyx_to_xywh_
 
-from utils.det_utils import encode_annos, bbox_transform, bbox_transform_inv, \
-  yxyx_to_xywh, losses, interpre_prediction, scale_bboxes
+from utils.det_utils import encode_annos, losses, interpre_prediction
+
 from configs.kitti_config import config
 
 import tensorflow.contrib.slim as slim
@@ -483,8 +481,6 @@ def main(_):
                                                                           anchors,
                                                                           config.NUM_CLASSES)
 
-      box_input = yxyx_to_xywh(box_input)  # [ymin, xmin, ymax, xmax] -> [cx, cy, w, h]
-
       images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = tf.train.batch(
         [image, input_mask, labels_input, box_delta_input, box_input],
         batch_size=FLAGS.batch_size,
@@ -501,12 +497,9 @@ def main(_):
       """Allows data parallelism by creating multiple clones of network_fn."""
       images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = batch_queue.dequeue()
 
-      # b_input_mask = tf.Print([b_input_mask], [images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input], "input_mask")
-
       end_points = network_fn(images)
       conv_ds_14 = end_points['MobileNet/conv_ds_14/depthwise_conv']
       dropout = slim.dropout(conv_ds_14, keep_prob=0.5, is_training=True)
-
       num_output = config.NUM_ANCHORS * (config.NUM_CLASSES + 1 + 4)
       predict = slim.conv2d(dropout, num_output, kernel_size=(3, 3), stride=1, padding='SAME',
                             weights_initializer=tf.random_normal_initializer(stddev=0.0001),
