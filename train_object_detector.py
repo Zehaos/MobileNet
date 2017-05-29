@@ -496,13 +496,14 @@ def main(_):
     def clone_fn(batch_queue):
       """Allows data parallelism by creating multiple clones of network_fn."""
       images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = batch_queue.dequeue()
-
+      anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
       end_points = network_fn(images)
       conv_ds_14 = end_points['MobileNet/conv_ds_14/depthwise_conv']
       dropout = slim.dropout(conv_ds_14, keep_prob=0.5, is_training=True)
       num_output = config.NUM_ANCHORS * (config.NUM_CLASSES + 1 + 4)
       predict = slim.conv2d(dropout, num_output, kernel_size=(3, 3), stride=1, padding='SAME',
-                            weights_initializer=tf.random_normal_initializer(stddev=0.0001),
+                            activation_fn=None,
+                            weights_initializer=tf.truncated_normal_initializer(stddev=0.0001),
                             scope="MobileNet/conv_predict")
 
       pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \

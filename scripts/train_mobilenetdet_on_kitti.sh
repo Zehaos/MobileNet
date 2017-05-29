@@ -28,14 +28,14 @@ python train_object_detector.py \
   --preprocessing_name=mobilenetdet \
   --width_multiplier=1.0 \
   --max_number_of_steps=1000000 \
-  --batch_size=5 \
+  --batch_size=10 \
   --save_interval_secs=240 \
-  --save_summaries_secs=240 \
+  --save_summaries_secs=60 \
   --log_every_n_steps=10 \
   --optimizer=sgd \
-  --learning_rate=0.0001 \
+  --learning_rate=0.00001 \
   --learning_rate_decay_factor=0.1 \
-  --num_epochs_per_decay=30.0 \
+  --num_epochs_per_decay=2.0 \
   --weight_decay=0.0001 \
   --num_clones=1
 
