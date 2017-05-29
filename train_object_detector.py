@@ -466,7 +466,7 @@ def main(_):
                                                            labels=gt_labels,
                                                            bboxes=gt_bboxes,
                                                            )
-      gt_bboxes = tf.reshape(gt_bboxes, tf.shape(gt_bboxes)[1:])
+      gt_bboxes = tf.squeeze(gt_bboxes, axis=0)
 
       #############################################
       # Encode annotations for losses computation #
@@ -475,7 +475,7 @@ def main(_):
       # anchors format [cx, cy, w, h]
       anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
 
-      # encode annos
+      # encode annos, box_input format [cx, cy, w, h]
       input_mask, labels_input, box_delta_input, box_input = encode_annos(gt_labels,
                                                                           gt_bboxes,
                                                                           anchors,
@@ -506,7 +506,7 @@ def main(_):
                             scope="MobileNet/conv_predict")
 
       pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
-        interpre_prediction(predict, b_input_mask, anchors, b_box_input, config.FEA_HEIGHT, config.FEA_WIDTH)
+        interpre_prediction(predict, b_input_mask, anchors, b_box_input)
       losses(b_input_mask, b_labels_input, ious, b_box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
       return end_points
 

@@ -52,7 +52,7 @@ def bbox_transform(bbox):
   return out_box
 
 
-def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w):
+def interpre_prediction(prediction, input_mask, anchors, box_input):
   # probability
   batch_size = tf.shape(input_mask)[0]
   num_class_probs = config.NUM_ANCHORS * config.NUM_CLASSES
@@ -63,7 +63,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
         [-1, config.NUM_CLASSES]
       )
     ),
-    [batch_size, config.NUM_ANCHORS * fea_h * fea_w, config.NUM_CLASSES],
+    [batch_size, config.ANCHORS, config.NUM_CLASSES],
     name='pred_class_probs'
   )
 
@@ -72,7 +72,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
   pred_conf = tf.sigmoid(
     tf.reshape(
       prediction[:, :, :, num_class_probs:num_confidence_scores],
-      [batch_size, config.NUM_ANCHORS * fea_h * fea_w]
+      [batch_size, config.ANCHORS]
     ),
     name='pred_confidence_score'
   )
@@ -80,7 +80,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
   # bbox_delta
   pred_box_delta = tf.reshape(
     prediction[:, :, :, num_confidence_scores:],
-    [batch_size, config.NUM_ANCHORS * fea_h * fea_w, 4],
+    [batch_size, config.ANCHORS, 4],
     name='bbox_delta'
   )
 
@@ -152,8 +152,14 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
             union = w1 * h1 + w2 * h2 - intersection
 
           return intersection / (union + config.EPSILON) \
-                 * tf.reshape(input_mask, [batch_size, config.NUM_ANCHORS * fea_h * fea_w])
+                 * tf.reshape(input_mask, [batch_size, config.ANCHORS])
 
+        # self.ious = self.ious.assign(
+        #   _tensor_iou(
+        #     util.bbox_transform(tf.unstack(self.det_boxes, axis=2)),
+        #     util.bbox_transform(tf.unstack(self.box_input, axis=2))
+        #   )
+        # )
         # TODO(shizehao): need test
         ious = _tensor_iou(
           bbox_transform(tf.unstack(det_boxes, axis=2)),
@@ -163,7 +169,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
       with tf.variable_scope('probability') as scope:
         probs = tf.multiply(
           pred_class_probs,
-          tf.reshape(pred_conf, [batch_size, config.NUM_ANCHORS * fea_h * fea_w, 1]),
+          tf.reshape(pred_conf, [batch_size, config.ANCHORS, 1]),
           name='final_class_prob'
         )
 
@@ -176,6 +182,7 @@ def interpre_prediction(prediction, input_mask, anchors, box_input, fea_h, fea_w
 def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_conf, pred_box_delta):
   batch_size = tf.shape(input_mask)[0]
   num_objects = tf.reduce_sum(input_mask, name='num_objects')
+
   with tf.variable_scope('class_regression') as scope:
     # cross-entropy: q * -log(p) + (1-q) * -log(1-p)
     # add a small value into log to prevent blowing up
@@ -212,9 +219,9 @@ def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_con
     )
     tf.losses.add_loss(bbox_loss)
 
-  # add above losses as well as weight decay losses to form the total loss
-  loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-  return loss
+  # # add above losses as well as weight decay losses to form the total loss
+  # loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+  # return loss
 
 
 # ################# MobileNet Det ########################
@@ -470,11 +477,10 @@ def encode_annos(labels, bboxes, anchors, num_classes):
   bbox_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
   iou_indices = tf.concat([bbox_indices, tf.cast(anchor_indices, dtype=tf.int32)], axis=1)
   target_iou = tf.gather_nd(ious, iou_indices)
-  none_overlap_bbox_indices = tf.where(target_iou <= 0) # 1-D
-
+  none_overlap_bbox_indices = tf.where(target_iou <= 0)  # 1-D
 
   # find it's corresponding anchor
-  closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors) # 1-D
+  closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors)  # 1-D
 
   anchor_indices = tf.reshape(anchor_indices, shape=[-1])
   anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
@@ -504,13 +510,10 @@ def encode_annos(labels, bboxes, anchors, num_classes):
                              shape=[num_anchors])
   input_mask = tf.reshape(input_mask, shape=[-1, 1])
 
-
-
   # delta
-  box_delta_input = tf.scatter_nd(
-    anchor_indices,
-    delta,
-    shape=[num_anchors, 4]
-  )
+  box_delta_input = tf.scatter_nd(anchor_indices,
+                                  delta,
+                                  shape=[num_anchors, 4]
+                                  )
 
   return input_mask, labels_input, box_delta_input, box_input
