@@ -506,9 +506,13 @@ def main(_):
                             weights_initializer=tf.truncated_normal_initializer(stddev=0.0001),
                             scope="MobileNet/conv_predict")
 
-      pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
-        interpre_prediction(predict, b_input_mask, anchors, b_box_input)
-      losses(b_input_mask, b_labels_input, ious, b_box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
+      with tf.variable_scope("Interpre_prediction") as scope:
+        pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
+          interpre_prediction(predict, b_input_mask, anchors, b_box_input)
+
+      with tf.variable_scope("Losses") as scope:
+        losses(b_input_mask, b_labels_input, ious, b_box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
+
       return end_points
 
     # Gather initial summaries.
@@ -520,7 +524,7 @@ def main(_):
     # the updates for the batch_norm variables created by network_fn.
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, first_clone_scope)
 
-    # Add summaries for end_points.
+    # Add summaries for end_points.TODO(shizehao): vizulize prediction
     end_points = clones[0].outputs
     for end_point in end_points:
       x = end_points[end_point]

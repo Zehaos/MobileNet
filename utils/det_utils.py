@@ -465,55 +465,56 @@ def encode_annos(labels, bboxes, anchors, num_classes):
     box_delta_input: 2-D with shape `[num_anchors, 4]`. Format [dcx, dcy, dw, dh]
     box_input: 2-D with shape '[num_anchors, 4]'. Format [ymin, xmin, ymax, xmax]
   """
-  num_anchors = anchors.get_shape().as_list()[0]
-  num_bboxes = tf.shape(bboxes)[0]
+  with tf.variable_scope("Encode_annotations") as scope:
+    num_anchors = config.ANCHORS
+    num_bboxes = tf.shape(bboxes)[0]
 
-  # Cal iou, find the target anchor
+    # Cal iou, find the target anchor
+    with tf.variable_scope("Matching") as subscope:
+      ious = batch_iou_fast(xywh_to_yxyx(anchors), bboxes)
+      anchor_indices = tf.reshape(tf.arg_max(ious, dimension=1), shape=[-1, 1])  # target anchor indices
 
-  ious = batch_iou_fast(xywh_to_yxyx(anchors), bboxes)
-  anchor_indices = tf.reshape(tf.arg_max(ious, dimension=1), shape=[-1, 1])  # target anchor indices
+      with tf.variable_scope("Deal_with_noneoverlap"):
+        # find the none-overlap bbox
+        bbox_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
+        iou_indices = tf.concat([bbox_indices, tf.cast(anchor_indices, dtype=tf.int32)], axis=1)
+        target_iou = tf.gather_nd(ious, iou_indices)
+        none_overlap_bbox_indices = tf.where(target_iou <= 0)  # 1-D
+        # find it's corresponding anchor
+        closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors)  # 1-D
+      with tf.variable_scope("Update_anchor_indices"):
+        anchor_indices = tf.reshape(anchor_indices, shape=[-1])
+        anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
+        anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
 
-  # find the none-overlap bbox
-  bbox_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
-  iou_indices = tf.concat([bbox_indices, tf.cast(anchor_indices, dtype=tf.int32)], axis=1)
-  target_iou = tf.gather_nd(ious, iou_indices)
-  none_overlap_bbox_indices = tf.where(target_iou <= 0)  # 1-D
+    with tf.variable_scope("Delta") as subscope:
+      target_anchors = tf.gather_nd(anchors, anchor_indices)
+      bboxes = yxyx_to_xywh(bboxes)
+      delta = batch_delta(bboxes, target_anchors)
 
-  # find it's corresponding anchor
-  closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors)  # 1-D
+    with tf.variable_scope("Scattering") as subscope:
+      # bbox
+      box_input = tf.scatter_nd(anchor_indices,
+                                bboxes,
+                                shape=[num_anchors, 4]
+                                )
 
-  anchor_indices = tf.reshape(anchor_indices, shape=[-1])
-  anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
-  anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
+      # label
+      labels_input = tf.scatter_nd(anchor_indices,
+                                   tf.one_hot(labels, num_classes),
+                                   shape=[num_anchors, num_classes]
+                                   )
 
-  target_anchors = tf.gather_nd(anchors, anchor_indices)
+      # anchor mask
+      input_mask = tf.scatter_nd(anchor_indices,
+                                 tf.ones([num_bboxes]),
+                                 shape=[num_anchors])
+      input_mask = tf.reshape(input_mask, shape=[-1, 1])
 
-  bboxes = yxyx_to_xywh(bboxes)
-
-  delta = batch_delta(bboxes, target_anchors)
-
-  # bbox
-  box_input = tf.scatter_nd(anchor_indices,
-                            bboxes,
-                            shape=[num_anchors, 4]
-                            )
-
-  # label
-  labels_input = tf.scatter_nd(anchor_indices,
-                               tf.one_hot(labels, num_classes),
-                               shape=[num_anchors, num_classes]
-                               )
-
-  # anchor mask
-  input_mask = tf.scatter_nd(anchor_indices,
-                             tf.ones([num_bboxes]),
-                             shape=[num_anchors])
-  input_mask = tf.reshape(input_mask, shape=[-1, 1])
-
-  # delta
-  box_delta_input = tf.scatter_nd(anchor_indices,
-                                  delta,
-                                  shape=[num_anchors, 4]
-                                  )
+      # delta
+      box_delta_input = tf.scatter_nd(anchor_indices,
+                                      delta,
+                                      shape=[num_anchors, 4]
+                                      )
 
   return input_mask, labels_input, box_delta_input, box_input
