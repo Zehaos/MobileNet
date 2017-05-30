@@ -506,11 +506,11 @@ def main(_):
                             weights_initializer=tf.truncated_normal_initializer(stddev=0.0001),
                             scope="MobileNet/conv_predict")
 
-      with tf.variable_scope("Interpre_prediction") as scope:
+      with tf.name_scope("Interpre_prediction") as scope:
         pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
           interpre_prediction(predict, b_input_mask, anchors, b_box_input)
 
-      with tf.variable_scope("Losses") as scope:
+      with tf.name_scope("Losses") as scope:
         losses(b_input_mask, b_labels_input, ious, b_box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
 
       return end_points
