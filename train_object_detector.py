@@ -498,6 +498,7 @@ def main(_):
       images, b_input_mask, b_labels_input, b_box_delta_input, b_box_input = batch_queue.dequeue()
       anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
       end_points = network_fn(images)
+      end_points["viz_images"] = images
       conv_ds_14 = end_points['MobileNet/conv_ds_14/depthwise_conv']
       dropout = slim.dropout(conv_ds_14, keep_prob=0.5, is_training=True)
       num_output = config.NUM_ANCHORS * (config.NUM_CLASSES + 1 + 4)
@@ -507,8 +508,11 @@ def main(_):
                             scope="MobileNet/conv_predict")
 
       with tf.name_scope("Interpre_prediction") as scope:
-        pred_box_delta, pred_class_probs, pred_conf, ious, _, _, _ = \
+        pred_box_delta, pred_class_probs, pred_conf, ious, det_probs, det_boxes, det_class = \
           interpre_prediction(predict, b_input_mask, anchors, b_box_input)
+        end_points["viz_det_probs"] = det_probs
+        end_points["viz_det_boxes"] = det_boxes
+        end_points["viz_det_class"] = det_class
 
       with tf.name_scope("Losses") as scope:
         losses(b_input_mask, b_labels_input, ious, b_box_delta_input, pred_class_probs, pred_conf, pred_box_delta)
@@ -524,13 +528,17 @@ def main(_):
     # the updates for the batch_norm variables created by network_fn.
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, first_clone_scope)
 
-    # Add summaries for end_points.TODO(shizehao): vizulize prediction
+    # Add summaries for end_points.
     end_points = clones[0].outputs
     for end_point in end_points:
-      x = end_points[end_point]
-      summaries.add(tf.summary.histogram('activations/' + end_point, x))
-      summaries.add(tf.summary.scalar('sparsity/' + end_point,
-                                      tf.nn.zero_fraction(x)))
+      if end_point not in ["viz_images", "viz_det_probs", "viz_det_boxes", "viz_det_class"]:
+        x = end_points[end_point]
+        summaries.add(tf.summary.histogram('activations/' + end_point, x))
+        summaries.add(tf.summary.scalar('sparsity/' + end_point,
+                                        tf.nn.zero_fraction(x)))
+
+    # Add summaries for det result TODO(shizehao): vizulize prediction
+
 
     # Add summaries for losses.
     for loss in tf.get_collection(tf.GraphKeys.LOSSES, first_clone_scope):

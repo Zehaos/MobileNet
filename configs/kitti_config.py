@@ -70,6 +70,11 @@ config.NUM_ANCHORS = 9
 config.NUM_CLASSES = 3
 config.ANCHORS = config.NUM_ANCHORS * config.FEA_HEIGHT * config.FEA_WIDTH
 
+config.PLOT_PROB_THRESH = 0.4
+config.NMS_THRESH = 0.4
+config.PROB_THRESH = 0.005
+config.TOP_N_DETECTION = 64
+
 
 
 

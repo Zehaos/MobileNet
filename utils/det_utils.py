@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import cv2
 from configs.kitti_config import config
 
 
@@ -50,6 +51,29 @@ def bbox_transform(bbox):
     out_box[3] = cy + h / 2
 
   return out_box
+
+
+def nms(boxes, probs, threshold):
+  """Non-Maximum supression.
+  Args:
+    boxes: array of [cx, cy, w, h] (center format)
+    probs: array of probabilities
+    threshold: two boxes are considered overlapping if their IOU is largher than
+        this threshold
+    form: 'center' or 'diagonal'
+  Returns:
+    keep: array of True or False.
+  """
+
+  order = probs.argsort()[::-1]
+  keep = [True]*len(order)
+
+  for i in range(len(order)-1):
+    ovps = batch_iou(boxes[order[i+1:]], boxes[order[i]])
+    for j, ov in enumerate(ovps):
+      if ov > threshold:
+        keep[order[j+i+1]] = False
+  return keep
 
 
 def interpre_prediction(prediction, input_mask, anchors, box_input):
@@ -219,9 +243,9 @@ def losses(input_mask, labels, ious, box_delta_input, pred_class_probs, pred_con
     )
     tf.losses.add_loss(bbox_loss)
 
-  # # add above losses as well as weight decay losses to form the total loss
-  # loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-  # return loss
+    # # add above losses as well as weight decay losses to form the total loss
+    # loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+    # return loss
 
 
 # ################# MobileNet Det ########################
@@ -518,3 +542,63 @@ def encode_annos(labels, bboxes, anchors, num_classes):
                                       )
 
   return input_mask, labels_input, box_delta_input, box_input
+
+
+def filter_prediction(boxes, probs, cls_idx):
+  """Filter bounding box predictions with probability threshold and
+  non-maximum supression.
+
+  Args:
+    boxes: array of [cx, cy, w, h].
+    probs: array of probabilities
+    cls_idx: array of class indices
+  Returns:
+    final_boxes: array of filtered bounding boxes.
+    final_probs: array of filtered probabilities
+    final_cls_idx: array of filtered class indices
+  """
+  pass
+  # if config.TOP_N_DETECTION < len(probs) and config.TOP_N_DETECTION > 0:
+  #   order = probs.argsort()[:-config.TOP_N_DETECTION - 1:-1]
+  #   probs = probs[order]
+  #   boxes = boxes[order]
+  #   cls_idx = cls_idx[order]
+  # else:
+  #   filtered_idx = np.nonzero(probs > config.PROB_THRESH)[0]
+  #   probs = probs[filtered_idx]
+  #   boxes = boxes[filtered_idx]
+  #   cls_idx = cls_idx[filtered_idx]
+  #
+  # final_boxes = []
+  # final_probs = []
+  # final_cls_idx = []
+  #
+  # for c in range(config.CLASSES):
+  #   idx_per_class = [i for i in range(len(probs)) if cls_idx[i] == c]
+  #   keep = nms(boxes[idx_per_class], probs[idx_per_class], config.NMS_THRESH)
+  #   for i in range(len(keep)):
+  #     if keep[i]:
+  #       final_boxes.append(boxes[idx_per_class[i]])
+  #       final_probs.append(probs[idx_per_class[i]])
+  #       final_cls_idx.append(c)
+  # return final_boxes, final_probs, final_cls_idx
+
+
+def viz_prediction_result(images, batch_det_bbox, batch_det_class, batch_det_prob):
+  pass
+  # for i in range(len(images)):
+  #   # draw prediction
+  #   det_bbox, det_prob, det_class = filter_prediction(
+  #     batch_det_bbox[i], batch_det_prob[i], batch_det_class[i])
+  #
+  #   keep_idx = [idx for idx in range(len(det_prob)) \
+  #               if det_prob[idx] > config.PLOT_PROB_THRESH]
+  #   det_bbox = [det_bbox[idx] for idx in keep_idx]
+  #   det_prob = [det_prob[idx] for idx in keep_idx]
+  #   det_class = [det_class[idx] for idx in keep_idx]
+  #
+  #   _draw_box(
+  #       images[i], det_bbox,
+  #       [mc.CLASS_NAMES[idx]+': (%.2f)'% prob \
+  #           for idx, prob in zip(det_class, det_prob)],
+  #       (0, 0, 255))
