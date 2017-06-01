@@ -20,7 +20,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 from tensorflow.python.ops import control_flow_ops
-
+from preprocessing import tf_image
 
 def apply_with_random_selector(x, func, num_cases):
   """Computes func(x, sel), with sel sampled from [0...num_cases-1].
@@ -128,14 +128,13 @@ def check_3d_image(image, require_static=True):
 
 
 def flip_with_bboxes(image, bboxes):
-  # image = tf.convert_to_tensor(image)
-  check_3d_image(image)
   uniform_random = tf.random_uniform([], 0, 1.0)
   mirror_cond = tf.less(uniform_random, .5)
   stride = tf.where(mirror_cond, -1, 1)
-  image = image[:, ::stride, :]
-  if mirror_cond:
-    img_w = tf.shape(image)[1]
+
+  def flip(image, bboxes, stride):
+    image = image[:, ::stride, :]
+    img_w = tf.cast(tf.shape(image)[1], dtype=tf.float32)
     bbox_coords = tf.unstack(bboxes, num=4, axis=1)
     y_min = bbox_coords[0]
     x_min = bbox_coords[1]
@@ -144,7 +143,14 @@ def flip_with_bboxes(image, bboxes):
     x_min_flip = img_w - x_max
     x_max_flip = img_w - x_min
     bboxes = tf.stack([y_min, x_min_flip, y_max, x_max_flip], 1, name='flip_bboxes')
-  return image, bboxes
+    return image, bboxes
+
+  def not_flip(image, bboxes):
+    return image, bboxes
+
+  image_fliped, bboxes = tf.cond(mirror_cond, lambda: flip(image, bboxes, stride), lambda: not_flip(image, bboxes))
+
+  return tf_image.fix_image_flip_shape(image, image_fliped), bboxes
 
 
 """
@@ -193,27 +199,25 @@ def preprocess_for_train(image, height, width, labels, bboxes,
     if image.dtype != tf.float32:
       image = tf.image.convert_image_dtype(image, dtype=tf.float32)
 
-    # Each bounding box has shape [1, num_boxes, box coords] and
-    # the coordinates are ordered [ymin, xmin, ymax, xmax].
-    # image_with_box = tf.image.draw_bounding_boxes(tf.expand_dims(image, 0),
-    #                                               bboxes)
-    # tf.summary.image('image_with_bounding_boxes', image_with_box)
-
-    # TODO(shizehao): Randomly flip the image horizontally.
-    # flip with bbox
-    # image, bboxes = flip_with_bboxes(image, bboxes)
-
+    tf.summary.image('ori_image',
+                     tf.expand_dims(image, 0))
     # Randomly distort the colors. There are 4 ways to do it.
     image = apply_with_random_selector(
       image,
         lambda x, ordering: distort_color(x, ordering, fast_mode),
         num_cases=4)
 
-    tf.summary.image('final_distorted_image',
-                     tf.expand_dims(image, 0))
+    # Randomly flip the image horizontally.
+    image, bboxes = flip_with_bboxes(image, bboxes)
+
+    print(image.get_shape())
 
     # TODO(shizehao): bistort bbox
     image = tf.squeeze(tf.image.resize_nearest_neighbor(tf.expand_dims(image,axis=0),size=[height, width]))
+
+    tf.summary.image('final_distorted_image',
+                     tf.expand_dims(image, 0))
+
     image = tf.subtract(image, 0.5)
     image = tf.multiply(image, 2.0)
 

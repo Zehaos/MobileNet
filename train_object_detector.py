@@ -459,14 +459,12 @@ def main(_):
       # Preprocesing
       # gt_bboxes = scale_bboxes(gt_bboxes, img_shape)  # bboxes format [0,1) for tf draw
 
-      gt_bboxes = tf.expand_dims(gt_bboxes, axis=0)
       image, gt_labels, gt_bboxes = image_preprocessing_fn(image,
                                                            config.IMG_HEIGHT,
                                                            config.IMG_WIDTH,
                                                            labels=gt_labels,
                                                            bboxes=gt_bboxes,
                                                            )
-      gt_bboxes = tf.squeeze(gt_bboxes, axis=0)
 
       #############################################
       # Encode annotations for losses computation #
