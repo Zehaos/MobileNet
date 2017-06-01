@@ -4,9 +4,11 @@ from __future__ import print_function
 
 import tensorflow as tf
 import numpy as np
+import cv2
 from utils.det_utils import *
 from configs.kitti_config import config
 
+import pickle
 
 class MobileNetDetTest(tf.test.TestCase):
   def test_batch_iou_fast(self):
@@ -36,12 +38,14 @@ class MobileNetDetTest(tf.test.TestCase):
 
   def test_arg_closest_anchor(self):
     with self.test_session() as sess:
-      anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
-      bbox_1 = tf.convert_to_tensor(config.ANCHOR_SHAPE[0], dtype=tf.float32)
-      bbox_2 = tf.convert_to_tensor(config.ANCHOR_SHAPE[-1], dtype=tf.float32)
+      bbox_1 = tf.convert_to_tensor([10, 10, 20, 20], dtype=tf.float32)
+      bbox_2 = tf.convert_to_tensor([110, 110, 30, 30], dtype=tf.float32)
       bboxes = tf.stack([bbox_1, bbox_2], axis=0)
-      bboxes = xywh_to_yxyx(bboxes)
-      anchors = xywh_to_yxyx(anchors)
+
+      anchor_1 = tf.convert_to_tensor([0,0,10,10], dtype=tf.float32)
+      anchor_2 = tf.convert_to_tensor([100,100,110,110], dtype=tf.float32)
+      anchors = tf.stack([anchor_1, anchor_2], axis=0)
+
       indices = arg_closest_anchor(bboxes, anchors)
       output = sess.run(indices)
       print('test_arg_closest_anchor')
@@ -59,36 +63,120 @@ class MobileNetDetTest(tf.test.TestCase):
       print("tensor updated", output)
 
   def test_encode_annos(self):
-    with self.test_session() as sess:
-      num_obj = 4
-      num_classes = config.NUM_CLASSES
+    with open("/home/zehao/PycharmProjects/MobileNet/utils/test_data.pkl", "rb") as fin:
+      test_data = pickle.load(fin)
 
-      labels = tf.constant(1, shape=[num_obj])
+    with self.test_session() as sess:
       anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
 
-      # Construct test bbox
-      # bbox_1 = tf.convert_to_tensor(config.ANCHOR_SHAPE[0], dtype=tf.float32)
-      # bbox_2 = tf.convert_to_tensor(config.ANCHOR_SHAPE[1], dtype=tf.float32)
-      # bbox_3 = tf.convert_to_tensor(config.ANCHOR_SHAPE[2], dtype=tf.float32)
-      # bbox_4 = tf.convert_to_tensor(config.ANCHOR_SHAPE[3], dtype=tf.float32)
-      bbox_1 = tf.convert_to_tensor([599.37, 212.45, 27.62, 25.34], dtype=tf.float32)
-      bbox_2 = tf.convert_to_tensor([922.14, 233.06, 91.41, 41.1], dtype=tf.float32)
-      bbox_3 = tf.convert_to_tensor([862.41, 232.61, 86.96, 44.73], dtype=tf.float32)
-      bbox_4 = tf.convert_to_tensor([729.87, 215.27, 32.22, 21.37], dtype=tf.float32)
-      bboxes = tf.stack([bbox_1, bbox_2, bbox_3, bbox_4], axis=0)
-      bboxes = xywh_to_yxyx(bboxes)
+      num_image = len(test_data["test_bbox"])
+      for i in range(5):
+        bboxes = tf.convert_to_tensor(test_data["test_bbox"][i][0], dtype=tf.float32)
+        bboxes = xywh_to_yxyx(bboxes)
+        labels = tf.convert_to_tensor(test_data["test_label"][i][0])
 
-      input_mask, labels_input, box_delta_input, box_input = \
-        encode_annos(labels, bboxes, anchors, num_classes)
+        input_mask, labels_input, box_delta_input, box_input = \
+          encode_annos(labels, bboxes, anchors, config.NUM_CLASSES)
 
-      out_input_mask, out_labels_input, out_box_delta_input, out_box_input, out_anchors = \
-        sess.run([input_mask, labels_input, box_delta_input, box_input, anchors])
+        out_input_mask, out_labels_input, out_box_delta_input, out_box_input, out_anchors = \
+          sess.run([input_mask, labels_input, box_delta_input, box_input, anchors])
 
 
-      print(np.where(out_input_mask > 0))
-      print(out_input_mask[2268], out_input_mask[2726], out_input_mask[2708], out_input_mask[2312])
-      print(out_box_delta_input[2268], out_box_delta_input[2726], out_box_delta_input[2708], out_box_delta_input[2312])
-      print(out_labels_input[2268], out_labels_input[2726], out_labels_input[2708], out_labels_input[2312])
-      print(out_box_input[2268], out_box_input[2726], out_box_input[2708], out_box_input[2312])
+
+        print("num_bbox:", np.shape(test_data["test_bbox"][i][0])[0])
+
+        sd_indices = np.where(test_data["test_input_mask"][i][0] > 0)[1][0]
+        print("SDet:")
+        print("indices:", sd_indices)
+        print("mask:", np.where(test_data["test_input_mask"][i][0] > 0)[1])
+        print("bbox:", test_data["test_bbox"][i][0])
+        print("label:", test_data["test_label"][i][0])
+        print("delta:", test_data["test_input_delta"][i][0][0][sd_indices])
+        # print("test_box_indices:", test_data["test_box_indices"][i] )
+
+        indices = np.where(out_input_mask > 0)[0][0]
+        print("Mine:")
+        print("indices:", indices)
+        print("mask:", np.where(out_input_mask > 0)[0])
+        print("bbox:", out_box_input[indices])
+        print("label:", out_labels_input[indices])
+        print("delta:", out_box_delta_input[indices])
 
 
+        print("\n")
+        # print("bbox:", out_box_input[indices])
+        # aidx = np.where(test_data["test_input_mask"][i][0] > 0)[1]
+        # encode_idx = np.where(out_input_mask > 0)[0]
+        # flag = False
+        # if np.shape(aidx)[0] != np.shape(encode_idx)[0]:
+        #   flag = True
+        # elif not np.alltrue(np.equal(aidx, encode_idx)):
+        #   flag = True
+        #   error_bidx = np.where(aidx != encode_idx)
+        #   true_aidx = aidx[error_bidx]
+        #   error_aidx = encode_idx[error_bidx]
+        # if flag:
+        #   image = test_data["test_image"][i][0]
+        #   for b in range(np.shape(test_data["test_bbox"][i][0])[0]):
+        #     bboxes = test_data["test_bbox"][i][0]
+        #     bbox = bboxes[b]
+        #     x = bbox[0]
+        #     y = bbox[1]
+        #     w = bbox[2]
+        #     h = bbox[3]
+        #     x1 = x-0.5*w
+        #     y1 = y-0.5*h
+        #     x2 = x+0.5*w
+        #     y2 = y+0.5*h
+        #     color = (255,0,0)
+        #     cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness=2)
+        #     if np.any(error_bidx[0] == b):#b in error_bidx:
+        #       for a in config.ANCHOR_SHAPE[true_aidx]:
+        #         true_a = a
+        #         x = true_a[0]
+        #         y = true_a[1]
+        #         w = true_a[2]
+        #         h = true_a[3]
+        #         x1 = x - 0.5 * w
+        #         y1 = y - 0.5 * h
+        #         x2 = x + 0.5 * w
+        #         y2 = y + 0.5 * h
+        #         color = (0, 255, 255)
+        #         cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness=2)
+        #       for ea in config.ANCHOR_SHAPE[error_aidx]:
+        #         error_a = ea
+        #         x = error_a[0]
+        #         y = error_a[1]
+        #         w = error_a[2]
+        #         h = error_a[3]
+        #         x1 = x - 0.5 * w
+        #         y1 = y - 0.5 * h
+        #         x2 = x + 0.5 * w
+        #         y2 = y + 0.5 * h
+        #         color = (255, 255, 0)
+        #         cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness=2)
+        #   # cv2.imwrite("img" + str(b) + ".jpg", image)
+        #   cv2.imshow("img", image)
+        #   cv2.waitKey(0)
+
+  def test_set_anchors(self):
+    anchors = config.ANCHOR_SHAPE
+    image = np.zeros((config.IMG_HEIGHT, config.IMG_WIDTH))
+    num_anchors = np.shape(anchors)[0]
+    for i in range(num_anchors):
+      anchor = anchors[i]
+      x = anchor[0]
+      y = anchor[1]
+      w = anchor[2]
+      h = anchor[3]
+      x1 = x - 0.5*w
+      y1 = y - 0.5*h
+      x2 = x + 0.5*w
+      y2 = y + 0.5*h
+      cv2.rectangle(image,
+                    (int(x1), int(y1)),
+                    (int(x2), int(y2)),
+                    (255,255,255)
+                    )
+    cv2.imshow("anchors", image)
+    cv2.waitKey(0)

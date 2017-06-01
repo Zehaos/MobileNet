@@ -365,7 +365,8 @@ def batch_iou_fast(anchors, bboxes):
   num_bboxes = tf.shape(bboxes)[0]
 
   box_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
-  box_indices = tf.reshape(tf.stack([box_indices] * num_anchors, axis=1), shape=[-1, 1])
+  box_indices = tf.reshape(tf.stack([box_indices] * num_anchors, axis=0), shape=[-1, 1])
+  # box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
   # box_indices = tf.concat([box_indices] * num_anchors, axis=0)
   # box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
   bboxes_m = tf.gather_nd(bboxes, box_indices)
@@ -391,7 +392,7 @@ def batch_iou_fast(anchors, bboxes):
     intersection
   )
 
-  ious = tf.div(intersection, union)
+  ious = tf.truediv(intersection, union)
 
   ious = tf.reshape(ious, shape=[num_bboxes, num_anchors])
 
@@ -440,8 +441,10 @@ def arg_closest_anchor(bboxes, anchors):
   _indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
   _indices = tf.reshape(tf.stack([_indices] * num_anchors, axis=1), shape=[-1, 1])
   bboxes_m = tf.gather_nd(bboxes, _indices)
+  # bboxes_m = tf.Print(bboxes_m, [bboxes_m], "bboxes_m", summarize=100)
 
   anchors_m = tf.tile(anchors, [num_bboxes, 1])
+  # anchors_m = tf.Print(anchors_m, [anchors_m], "anchors_m", summarize=100)
 
   square_dist = tf.squared_difference(bboxes_m[:, 0], anchors_m[:, 0]) + \
                 tf.squared_difference(bboxes_m[:, 1], anchors_m[:, 1]) + \
@@ -449,6 +452,8 @@ def arg_closest_anchor(bboxes, anchors):
                 tf.squared_difference(bboxes_m[:, 3], anchors_m[:, 3])
 
   square_dist = tf.reshape(square_dist, shape=[num_bboxes, num_anchors])
+
+  # square_dist = tf.Print(square_dist, [square_dist], "square_dist", summarize=100)
 
   indices = tf.arg_min(square_dist, dimension=1)
 
@@ -497,6 +502,7 @@ def encode_annos(labels, bboxes, anchors, num_classes):
     with tf.name_scope("Matching") as subscope:
       ious = batch_iou_fast(xywh_to_yxyx(anchors), bboxes)
       anchor_indices = tf.reshape(tf.arg_max(ious, dimension=1), shape=[-1, 1])  # target anchor indices
+      # anchor_indices = tf.Print(anchor_indices, [anchor_indices], summarize=100)
 
       with tf.name_scope("Deal_with_noneoverlap"):
         # find the none-overlap bbox
@@ -506,10 +512,10 @@ def encode_annos(labels, bboxes, anchors, num_classes):
         none_overlap_bbox_indices = tf.where(target_iou <= 0)  # 1-D
         # find it's corresponding anchor
         closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors)  # 1-D
-      with tf.name_scope("Update_anchor_indices"):
-        anchor_indices = tf.reshape(anchor_indices, shape=[-1])
-        anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
-        anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
+      # with tf.name_scope("Update_anchor_indices"):
+      #   anchor_indices = tf.reshape(anchor_indices, shape=[-1])
+      #   anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
+      #   anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
 
     with tf.name_scope("Delta") as subscope:
       target_anchors = tf.gather_nd(anchors, anchor_indices)
@@ -530,6 +536,9 @@ def encode_annos(labels, bboxes, anchors, num_classes):
                                    )
 
       # anchor mask
+      # unique_indices, _ = tf.unique(tf.reshape(anchor_indices, shape=[-1]))
+      # unique_indices = tf.Print(unique_indices, [unique_indices], summarize=100)
+      # num_bboxes = tf.Print(num_bboxes, [num_bboxes])
       input_mask = tf.scatter_nd(anchor_indices,
                                  tf.ones([num_bboxes]),
                                  shape=[num_anchors])
