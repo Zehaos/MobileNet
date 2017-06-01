@@ -365,13 +365,17 @@ def batch_iou_fast(anchors, bboxes):
   num_bboxes = tf.shape(bboxes)[0]
 
   box_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
-  box_indices = tf.reshape(tf.stack([box_indices] * num_anchors, axis=0), shape=[-1, 1])
-  # box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
-  # box_indices = tf.concat([box_indices] * num_anchors, axis=0)
-  # box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
+  box_indices = tf.reshape(tf.stack([box_indices] * num_anchors, axis=1), shape=[-1, 1]) # use tf.tile instead
+  # box_indices = tf.tile(box_indices, [num_anchors, 1])
+
+  box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
+
+
   bboxes_m = tf.gather_nd(bboxes, box_indices)
+  bboxes_m = tf.Print(bboxes_m, [bboxes_m], "bboxes_m", summarize=100)
 
   anchors_m = tf.tile(anchors, [num_bboxes, 1])
+  anchors_m = tf.Print(anchors_m, [anchors_m], "anchors_m", summarize=100)
 
   lr = tf.maximum(
     tf.minimum(bboxes_m[:, 3], anchors_m[:, 3]) -
@@ -502,7 +506,7 @@ def encode_annos(labels, bboxes, anchors, num_classes):
     with tf.name_scope("Matching") as subscope:
       ious = batch_iou_fast(xywh_to_yxyx(anchors), bboxes)
       anchor_indices = tf.reshape(tf.arg_max(ious, dimension=1), shape=[-1, 1])  # target anchor indices
-      # anchor_indices = tf.Print(anchor_indices, [anchor_indices], summarize=100)
+      anchor_indices = tf.Print(anchor_indices, [anchor_indices], "anchor_indices", summarize=100)
 
       with tf.name_scope("Deal_with_noneoverlap"):
         # find the none-overlap bbox
@@ -512,10 +516,10 @@ def encode_annos(labels, bboxes, anchors, num_classes):
         none_overlap_bbox_indices = tf.where(target_iou <= 0)  # 1-D
         # find it's corresponding anchor
         closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors)  # 1-D
-      # with tf.name_scope("Update_anchor_indices"):
-      #   anchor_indices = tf.reshape(anchor_indices, shape=[-1])
-      #   anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
-      #   anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
+      with tf.name_scope("Update_anchor_indices"):
+        anchor_indices = tf.reshape(anchor_indices, shape=[-1])
+        anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
+        anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
 
     with tf.name_scope("Delta") as subscope:
       target_anchors = tf.gather_nd(anchors, anchor_indices)

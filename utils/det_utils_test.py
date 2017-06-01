@@ -85,23 +85,23 @@ class MobileNetDetTest(tf.test.TestCase):
 
         print("num_bbox:", np.shape(test_data["test_bbox"][i][0])[0])
 
-        sd_indices = np.where(test_data["test_input_mask"][i][0] > 0)[1][0]
+        sd_indices = np.where(test_data["test_input_mask"][i][0] > 0)[1]
         print("SDet:")
         print("indices:", sd_indices)
         print("mask:", np.where(test_data["test_input_mask"][i][0] > 0)[1])
         print("bbox:", test_data["test_bbox"][i][0])
         print("label:", test_data["test_label"][i][0])
         print("delta:", test_data["test_input_delta"][i][0][0][sd_indices])
-        # print("test_box_indices:", test_data["test_box_indices"][i] )
+        print("first:", sd_indices[0], out_box_input[sd_indices[0]], test_data["test_input_delta"][i][0][0][sd_indices[0]])
 
-        indices = np.where(out_input_mask > 0)[0][0]
+        indices = np.where(out_input_mask > 0)[0]
         print("Mine:")
         print("indices:", indices)
         print("mask:", np.where(out_input_mask > 0)[0])
         print("bbox:", out_box_input[indices])
         print("label:", out_labels_input[indices])
         print("delta:", out_box_delta_input[indices])
-
+        print("first:", indices[0], out_box_input[indices[0]], out_box_delta_input[indices[0]])
 
         print("\n")
         # print("bbox:", out_box_input[indices])
