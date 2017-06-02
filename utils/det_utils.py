@@ -178,13 +178,6 @@ def interpre_prediction(prediction, input_mask, anchors, box_input):
           return intersection / (union + config.EPSILON) \
                  * tf.reshape(input_mask, [batch_size, config.ANCHORS])
 
-        # self.ious = self.ious.assign(
-        #   _tensor_iou(
-        #     util.bbox_transform(tf.unstack(self.det_boxes, axis=2)),
-        #     util.bbox_transform(tf.unstack(self.box_input, axis=2))
-        #   )
-        # )
-        # TODO(shizehao): need test
         ious = _tensor_iou(
           bbox_transform(tf.unstack(det_boxes, axis=2)),
           bbox_transform(tf.unstack(box_input, axis=2))
@@ -368,14 +361,14 @@ def batch_iou_fast(anchors, bboxes):
   box_indices = tf.reshape(tf.stack([box_indices] * num_anchors, axis=1), shape=[-1, 1]) # use tf.tile instead
   # box_indices = tf.tile(box_indices, [num_anchors, 1])
 
-  box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
+  # box_indices = tf.Print(box_indices, [box_indices], "box_indices", summarize=100)
 
 
   bboxes_m = tf.gather_nd(bboxes, box_indices)
-  bboxes_m = tf.Print(bboxes_m, [bboxes_m], "bboxes_m", summarize=100)
+  # bboxes_m = tf.Print(bboxes_m, [bboxes_m], "bboxes_m", summarize=100)
 
   anchors_m = tf.tile(anchors, [num_bboxes, 1])
-  anchors_m = tf.Print(anchors_m, [anchors_m], "anchors_m", summarize=100)
+  # anchors_m = tf.Print(anchors_m, [anchors_m], "anchors_m", summarize=100)
 
   lr = tf.maximum(
     tf.minimum(bboxes_m[:, 3], anchors_m[:, 3]) -
@@ -483,6 +476,31 @@ def update_tensor(ref, indices, update):
   return ref * zero + update_value
 
 
+def find_dup(a):
+  """ Find the duplicated elements in 1-D a tensor.
+  Args:
+    a: 1-D tensor.
+    
+  Return:
+    more_than_one_vals: duplicated value in a.
+    indexes_in_a: duplicated value's index in a.
+    dups_in_a: duplicated value with duplicate in a.
+  """
+  unique_a_vals, unique_idx = tf.unique(a)
+  count_a_unique = tf.unsorted_segment_sum(tf.ones_like(a),
+                                           unique_idx,
+                                           tf.shape(a)[0])
+
+  more_than_one = tf.greater(count_a_unique, 1)
+  more_than_one_idx = tf.squeeze(tf.where(more_than_one))
+  more_than_one_vals = tf.squeeze(tf.gather(unique_a_vals, more_than_one_idx))
+
+  not_duplicated, _ = tf.setdiff1d(a, more_than_one_vals)
+  dups_in_a, indexes_in_a = tf.setdiff1d(a, not_duplicated)
+
+  return more_than_one_vals, indexes_in_a, dups_in_a
+
+
 def encode_annos(labels, bboxes, anchors, num_classes):
   """Encode annotations for losses computations.
   All the output tensors have a fix shape(none dynamic dimention).
@@ -500,31 +518,68 @@ def encode_annos(labels, bboxes, anchors, num_classes):
   """
   with tf.name_scope("Encode_annotations") as scope:
     num_anchors = config.ANCHORS
-    num_bboxes = tf.shape(bboxes)[0]
+    # num_bboxes = tf.shape(bboxes)[0]
 
     # Cal iou, find the target anchor
     with tf.name_scope("Matching") as subscope:
       ious = batch_iou_fast(xywh_to_yxyx(anchors), bboxes)
       anchor_indices = tf.reshape(tf.arg_max(ious, dimension=1), shape=[-1, 1])  # target anchor indices
-      anchor_indices = tf.Print(anchor_indices, [anchor_indices], "anchor_indices", summarize=100)
+      # anchor_indices = tf.Print(anchor_indices, [anchor_indices], "anchor_indices", summarize=100)
+
+      # discard duplicate # unique_idx wrong
+      anchor_indices, idx, count = tf.unique_with_counts(tf.reshape(anchor_indices, shape=[-1]))
+      ori_idx = tf.cumsum(tf.pad(count, [[1, 0]]))[:-1]
+      anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
+      bboxes = tf.gather(bboxes, tf.unique(ori_idx)[0])
+      labels = tf.gather(labels, tf.unique(ori_idx)[0])
+      ious = tf.gather(ious, tf.unique(ori_idx)[0])
+      num_bboxes = tf.shape(anchor_indices)[0]
+
+      # TODO(shizehao):deal with duplicate
+      # with tf.name_scope("Deal_with_duplicate"):
+      #   dup_anchor_indices, indices_in_a, dup_anchor_indices_with_dup = find_dup(tf.reshape(anchor_indices, shape=[-1]))
+      #
+      #   # reset duplicated corresponding anchor
+      #   conflicted_ious = tf.gather(ious, indices_in_a)
+      #   top_k_anchor_indices = tf.nn.top_k(conflicted_ious, k=20).indices  # shape = [num_conflicted_bboxes, 20]
+      #   dup_group_idx = tf.where(tf.equal(dup_anchor_indices_with_dup, tf.reshape(dup_anchor_indices, shape=[-1, 1])))
+      #   seg_group = tf.unstack(dup_group_idx, axis=1)[0]
+
 
       with tf.name_scope("Deal_with_noneoverlap"):
         # find the none-overlap bbox
         bbox_indices = tf.reshape(tf.range(num_bboxes), shape=[-1, 1])
+        # bbox_indices = tf.Print(bbox_indices, [bbox_indices], "bbox_indices", summarize=100)
+
+        # anchor_indices = tf.Print(anchor_indices, [anchor_indices], "anchor_indices", summarize=100)
         iou_indices = tf.concat([bbox_indices, tf.cast(anchor_indices, dtype=tf.int32)], axis=1)
+        # iou_indices = tf.Print(iou_indices, [iou_indices], "iou_indices", summarize=100)
+
         target_iou = tf.gather_nd(ious, iou_indices)
+        # target_iou = tf.Print(target_iou,[target_iou],"target_iou",summarize=100)
+
         none_overlap_bbox_indices = tf.where(target_iou <= 0)  # 1-D
+        # none_overlap_bbox_indices = tf.Print(none_overlap_bbox_indices, [none_overlap_bbox_indices], "none_overlap_bbox_indices", summarize=100)
+
         # find it's corresponding anchor
-        closest_anchor_indices = arg_closest_anchor(tf.gather_nd(bboxes, none_overlap_bbox_indices), anchors)  # 1-D
+        target_bbox = tf.gather_nd(bboxes, none_overlap_bbox_indices)
+        # target_bbox = tf.Print(target_bbox, [target_bbox], "target_bbox", summarize=100)
+
+        closest_anchor_indices = arg_closest_anchor(target_bbox, xywh_to_yxyx(anchors))  # 1-D
+        # closest_anchor_indices = tf.Print(closest_anchor_indices, [closest_anchor_indices, tf.gather(anchors, closest_anchor_indices)], "closest_anchor_indices", summarize=100)
+
       with tf.name_scope("Update_anchor_indices"):
         anchor_indices = tf.reshape(anchor_indices, shape=[-1])
         anchor_indices = update_tensor(anchor_indices, none_overlap_bbox_indices, closest_anchor_indices)
         anchor_indices = tf.reshape(anchor_indices, shape=[-1, 1])
 
+
     with tf.name_scope("Delta") as subscope:
       target_anchors = tf.gather_nd(anchors, anchor_indices)
       bboxes = yxyx_to_xywh(bboxes)
       delta = batch_delta(bboxes, target_anchors)
+
+
 
     with tf.name_scope("Scattering") as subscope:
       # bbox
@@ -539,6 +594,16 @@ def encode_annos(labels, bboxes, anchors, num_classes):
                                    shape=[num_anchors, num_classes]
                                    )
 
+      # delta
+      box_delta_input = tf.scatter_nd(anchor_indices,
+                                      delta,
+                                      shape=[num_anchors, 4]
+                                      )
+
+
+
+
+
       # anchor mask
       # unique_indices, _ = tf.unique(tf.reshape(anchor_indices, shape=[-1]))
       # unique_indices = tf.Print(unique_indices, [unique_indices], summarize=100)
@@ -547,12 +612,6 @@ def encode_annos(labels, bboxes, anchors, num_classes):
                                  tf.ones([num_bboxes]),
                                  shape=[num_anchors])
       input_mask = tf.reshape(input_mask, shape=[-1, 1])
-
-      # delta
-      box_delta_input = tf.scatter_nd(anchor_indices,
-                                      delta,
-                                      shape=[num_anchors, 4]
-                                      )
 
   return input_mask, labels_input, box_delta_input, box_input
 

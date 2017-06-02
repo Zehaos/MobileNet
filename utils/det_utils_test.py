@@ -55,7 +55,7 @@ class MobileNetDetTest(tf.test.TestCase):
   def test_update_tensor(self):
     with self.test_session() as sess:
       ref = tf.placeholder(dtype=tf.int64, shape=[None])#tf.convert_to_tensor([1, 2, 3], dtype=tf.int64)
-      indices = tf.convert_to_tensor([0], dtype=tf.int64)
+      indices = tf.convert_to_tensor([2], dtype=tf.int64)
       update = tf.convert_to_tensor([9], dtype=tf.int64)
       tensor_updated = update_tensor(ref, indices, update)
       output = sess.run(tensor_updated, feed_dict={ref: [1, 2, 3]})
@@ -70,7 +70,7 @@ class MobileNetDetTest(tf.test.TestCase):
       anchors = tf.convert_to_tensor(config.ANCHOR_SHAPE, dtype=tf.float32)
 
       num_image = len(test_data["test_bbox"])
-      for i in range(5):
+      for i in range(50):
         bboxes = tf.convert_to_tensor(test_data["test_bbox"][i][0], dtype=tf.float32)
         bboxes = xywh_to_yxyx(bboxes)
         labels = tf.convert_to_tensor(test_data["test_label"][i][0])
@@ -92,7 +92,7 @@ class MobileNetDetTest(tf.test.TestCase):
         print("bbox:", test_data["test_bbox"][i][0])
         print("label:", test_data["test_label"][i][0])
         print("delta:", test_data["test_input_delta"][i][0][0][sd_indices])
-        print("first:", sd_indices[0], out_box_input[sd_indices[0]], test_data["test_input_delta"][i][0][0][sd_indices[0]])
+        print("first:", sd_indices[0], test_data["test_input_bbox"][i][0][0][sd_indices[0]], test_data["test_input_delta"][i][0][0][sd_indices[0]])
 
         indices = np.where(out_input_mask > 0)[0]
         print("Mine:")
@@ -161,7 +161,7 @@ class MobileNetDetTest(tf.test.TestCase):
 
   def test_set_anchors(self):
     anchors = config.ANCHOR_SHAPE
-    image = np.zeros((config.IMG_HEIGHT, config.IMG_WIDTH))
+    image = np.zeros((config.IMG_HEIGHT, config.IMG_WIDTH, 3))
     num_anchors = np.shape(anchors)[0]
     for i in range(num_anchors):
       anchor = anchors[i]
@@ -178,5 +178,17 @@ class MobileNetDetTest(tf.test.TestCase):
                     (int(x2), int(y2)),
                     (255,255,255)
                     )
+      cv2.rectangle(image,
+                    (int(739.72003), int(181.11)),
+                    (int(770.04), int(204.92)),
+                    (255, 0, 0),
+                    2)
+      if i == 2313:
+        cv2.rectangle(image,
+                      (int(x1), int(y1)),
+                      (int(x2), int(y2)),
+                      (0, 255, 255),
+                      2
+                      )
     cv2.imshow("anchors", image)
     cv2.waitKey(0)
