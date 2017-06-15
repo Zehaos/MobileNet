@@ -2,6 +2,8 @@
 
 A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications](https://arxiv.org/abs/1704.04861)
 
+The offical implementation is avaliable at [tensorflow/model](https://github.com/tensorflow/models/blob/master/slim/nets/mobilenet_v1.md).
+
 ## Base Module
 
 <div align="center">
