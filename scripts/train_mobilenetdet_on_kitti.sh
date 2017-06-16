@@ -1,8 +1,7 @@
 #!/bin/bash
 #
 # This script performs the following operations:
-# 1. Trains a MobileNet model on the Imagenet training set.
-# 2. Evaluates the model on the Imagenet validation set.
+# 1. Trains a MobileNet model on the kitti dataset.
 #
 # Usage:
 # ./scripts/train_mobilenetdet_on_kitti.sh
