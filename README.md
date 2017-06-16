@@ -4,7 +4,7 @@ A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neu
 
 The official implementation is avaliable at [tensorflow/model](https://github.com/tensorflow/models/blob/master/slim/nets/mobilenet_v1.md).
 
-The official implementation of object detection is now release [googleblog](https://research.googleblog.com/2017/06/supercharge-your-computer-vision-models.html).
+The official implementation of object detection is now released, see [googleblog](https://research.googleblog.com/2017/06/supercharge-your-computer-vision-models.html).
 
 ## Base Module
 
