@@ -25,6 +25,7 @@ from datasets import dataset_factory
 from deployment import model_deploy
 from nets import nets_factory
 from preprocessing import preprocessing_factory
+from optimizer.yellowfin import YFOptimizer
 
 slim = tf.contrib.slim
 
@@ -311,6 +312,8 @@ def _configure_optimizer(learning_rate):
         epsilon=FLAGS.opt_epsilon)
   elif FLAGS.optimizer == 'sgd':
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+  elif FLAGS.optimizer == 'yellowfin':
+    optimizer = YFOptimizer(lr=1.0, mu=0.0)
   else:
     raise ValueError('Optimizer [%s] was not recognized', FLAGS.optimizer)
   return optimizer

@@ -27,7 +27,7 @@ python train_image_classifier.py \
   --save_interval_secs=240 \
   --save_summaries_secs=240 \
   --log_every_n_steps=100 \
-  --optimizer=rmsprop \
+  --optimizer=yellowfin \
   --rmsprop_decay=0.9 \
   --opt_epsilon=1.0\
   --learning_rate=0.1 \
