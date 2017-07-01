@@ -6,6 +6,11 @@ The official implementation is avaliable at [tensorflow/model](https://github.co
 
 The official implementation of object detection is now released, see [tensorflow/model/object_detection](https://github.com/tensorflow/models/tree/master/object_detection).
 
+# News
+YellowFin optimizer has been intergrated, but I have no gpu resources to train on imagenet with it. Call for training ~_~
+
+Official implement [click here](https://github.com/JianGoForIt/YellowFin)
+
 ## Base Module
 
 <div align="center">
