@@ -26,5 +26,5 @@ with open(val_file, 'w') as f:
     f.write('{}\n'.format(i))
 f.close()
 
-print 'Trainining set is saved to ' + train_file
-print 'Validation set is saved to ' + val_file
+print('Trainining set is saved to ' + train_file)
+print('Validation set is saved to ' + val_file)
