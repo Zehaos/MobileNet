@@ -2,7 +2,7 @@
 
 A tensorflow implementation of Google's [MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications](https://arxiv.org/abs/1704.04861)
 
-The official implementation is avaliable at [tensorflow/model](https://github.com/tensorflow/models/blob/master/slim/nets/mobilenet_v1.md).
+The official implementation is avaliable at [tensorflow/model](https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md).
 
 The official implementation of object detection is now released, see [tensorflow/model/object_detection](https://github.com/tensorflow/models/tree/master/object_detection).
 
