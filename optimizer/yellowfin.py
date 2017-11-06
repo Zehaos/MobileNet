@@ -248,8 +248,8 @@ class YFOptimizer(object):
           " that do not support gradients, between variables %s and loss %s." %
           ([str(v) for _, v in grads_and_vars], loss))
     for g, v in grads_and_vars:
-      print "g ", g
-      print "v ", v
+      print("g ", g)
+      print("v ", v)
 
     return self.apply_gradients(grads_and_vars)
 

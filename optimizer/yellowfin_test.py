@@ -88,7 +88,7 @@ def test_measurement():
       assert np.abs(target_h_min - res[2] ) < np.abs(target_h_min) * 1e-3
       assert np.abs(target_var - res[3] ) < np.abs(res[3] ) * 1e-3
       assert np.abs(target_dist - res[4] ) < np.abs(res[4] ) * 1e-3
-  print "sync measurement test passed!"
+  print("sync measurement test passed!")
 
 
 def test_lr_mu():
@@ -151,7 +151,7 @@ def test_lr_mu():
       assert np.abs(target_dist - res[4] ) < np.abs(res[4] ) * 1e-3
       assert target_lr == 0.0 or np.abs(target_lr - res[5] ) < np.abs(res[5] ) * 1e-3
       assert target_mu == 0.0 or np.abs(target_mu - res[6] ) < np.abs(res[6] ) * 5e-3 
-  print "lr and mu computing test passed!"
+  print("lr and mu computing test passed!")
 
 
 if __name__ == "__main__":
@@ -160,23 +160,23 @@ if __name__ == "__main__":
     start = time.time()
     test_measurement()
     end = time.time()
-    print "GPU measurement test done in ", (end - start)/float(n_iter), " s/iter!"
+    print("GPU measurement test done in ", (end - start)/float(n_iter), " s/iter!")
   with tf.variable_scope("test_sync_lr_mu"):
     start = time.time()
     test_lr_mu()
     end = time.time()
-    print "GPU lr and mu test done in ", (end - start)/float(n_iter), " s/iter!"
+    print("GPU lr and mu test done in ", (end - start)/float(n_iter), " s/iter!")
 
   # test cpu mode
   with tf.variable_scope("test_sync_measurement_cpu"), tf.device("cpu:0"):
     start = time.time()
     test_measurement()
     end = time.time()
-    print "CPU measurement test done in ", (end - start)/float(n_iter), " s/iter!"
+    print("CPU measurement test done in ", (end - start)/float(n_iter), " s/iter!")
   with tf.variable_scope("test_sync_lr_mu_cpu"), tf.device("cpu:0"):
     start = time.time()
     test_lr_mu()
     end = time.time()
-    print "CPU lr and mu test done in ", (end - start)/float(n_iter), " s/iter!"
+    print("CPU lr and mu test done in ", (end - start)/float(n_iter), " s/iter!")
 
 
